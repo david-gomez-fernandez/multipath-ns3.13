@@ -1,0 +1,1 @@
+#define	NEISA	1

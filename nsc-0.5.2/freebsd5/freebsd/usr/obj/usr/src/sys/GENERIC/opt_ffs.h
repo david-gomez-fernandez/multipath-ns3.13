@@ -1,0 +1,1 @@
+#define SOFTUPDATES 1

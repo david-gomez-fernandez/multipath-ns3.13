@@ -1,0 +1,34 @@
+Same as for x86: We need to access the pseudo-thread information
+provided by nsc instead.
+
+diff -r 4a00917c4d5f linux-2.6.26/include/asm-x86/thread_info_64.h
+--- a/linux-2.6.26/include/asm-x86/thread_info_64.h	Thu Aug 07 23:57:46 2008 +0200
++++ b/linux-2.6.26/include/asm-x86/thread_info_64.h	Sat Aug 09 17:49:46 2008 -0700
+@@ -62,17 +62,27 @@ struct thread_info {
+ 
+ static inline struct thread_info *current_thread_info(void)
+ {
++#ifdef CONFIG_NSC
++	extern struct thread_info *nsc_get_current_thread_info(void);
++	return nsc_get_current_thread_info();
++#else
+ 	struct thread_info *ti;
+ 	ti = (void *)(read_pda(kernelstack) + PDA_STACKOFFSET - THREAD_SIZE);
+ 	return ti;
++#endif
+ }
+ 
+ /* do not use in interrupt context */
+ static inline struct thread_info *stack_thread_info(void)
+ {
++#ifdef CONFIG_NSC
++	extern struct thread_info *nsc_get_current_thread_info(void);
++	return nsc_get_current_thread_info();
++#else
+ 	struct thread_info *ti;
+ 	asm("andq %%rsp,%0; " : "=r" (ti) : "0" (~(THREAD_SIZE - 1)));
+ 	return ti;
++#endif
+ }
+ 
+ /* thread information allocation */

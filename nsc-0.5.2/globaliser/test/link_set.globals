@@ -1,0 +1,8 @@
+__set_sysinit_set_sym_M_MODULE_init_sys_init$section
+sysinit_set$section_stopstart
+__set_sysuninit_set_sym_M_MODULE_uninit_sys_uninit$section
+sysuninit_set$section_stopstart
+
+#SI_SUB_KMEM$ignored
+#SI_ORDER_ANY$ignored
+#SI_ORDER_SECOND$ignored

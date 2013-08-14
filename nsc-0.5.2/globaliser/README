@@ -1,0 +1,137 @@
+LICENSE
+
+  globaliser -- programmatically replace globals in C source code
+  Copyright (C) 2003-2006 Sam Jansen
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the Free
+  Software Foundation; either version 2 of the License, or (at your option)
+  any later version.
+
+  This program is distributed in the hope that it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+  more details.
+
+  You should have received a copy of the GNU General Public License along
+  with this program; if not, write to the Free Software Foundation, Inc., 59
+  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+VERSION
+
+  1.1.0
+  2008-01-10
+
+INTRODUCTION
+
+  globaliser is a program that replaces global variables in preprocessed C
+  source code.
+
+USAGE
+
+  globaliser [-vv] <globals_file> 
+
+  The globaliser will read from stdin and output to stdout. It takes one
+  option, -v or -vv change verbosity level to report more information about
+  globals encountered. It takes one required argument, a file which lists
+  the global variables to be replaced, one per line.
+
+  Examples of the usage of globaliser can be found in the Network Simulation
+  Cradle where it is used on the FreeBSD, Linux and OpenBSD network stacks.
+
+GLOBALS FILE
+
+  The globals file is a list of identifiers to be modified, one on each line.
+  White space is ignored. If the identifier has a '/' in it, it identifies a
+  static local variable. This is best illustrated with an example.
+
+# -- globals.txt
+global_var_1
+func/static_local_var_1
+global_var_2
+# -- end globals.txt
+
+  In the above example, two global variables 'global_var_1' and 'global_var_2'
+  will be modified and the static local variable 'static_local_var_1' in the
+  function 'func'.
+
+ADVANCED FUNCTIONALITY
+
+  There is also support for variables in special sections. A variable in a
+  section that is to be specially handled should have '$section' appended to
+  it's name. For example 'global_var_1$section'. For the 'start' and 'stop'
+  variables to be correct for a section, a line in the globals file should be
+  created like so 'my_sec$section_stopstart'. This makes the 'start' and 'stop'
+  variables for the section 'my_sec' handled like the variables with '$section'
+  in their name. This functionality is probably not required by most users and
+  can be ignored. For an example of this in use, look for the Network Simulation
+  Cradle project downloadable from the same website this is.
+
+  Not all variables can be globalised easily. Some require a separate method of
+  being changed so that correct code is output by the globaliser. In general,
+  this happens behind the scenes for types based on arrays. It is possible to
+  fool the globaliser, in which case the variable must explicitly be set to use
+  an "expanded" method of globalisation. To do this, the suffix "$expand_decl"
+  should be added to the variable in the globals file. e.g., one line in the
+  globals file will look something like "my_var$expand_decl"
+
+KNOWN BUGS AND LIMITATIONS
+
+   Traditionally gcc attributes have caused problems with parsing. This should no
+   longer be the case.
+  
+   There are bound to be cases of C, especially C using gcc extensions, which
+   will not parse. Bug reports are welcome.
+
+CHANGE HISTORY
+
+  2008-01-10
+  1.1.0
+
+    Handle new expressions:
+     * _Bool C99 type
+     * alignof expression
+     * more inline struct initialisation support
+     * other extra structure syntax
+     * range using ellipses like '{ [0 .. 2] = 0UL }'
+
+    gcc attributes are now parsed in the pre-parser/lexer and not the
+    bison-generated parser. This cleans up the parser (now only one shift-reduce
+    conflict due to the expected dangling-else case).
+
+    Global declarations are only modified if any of the global variables in the
+    declaration are to be modified.
+
+    Allow specifying a global to be "expanded" with the new method. This allows
+    the globaliser to globalise some variables it had problems with in the past.
+
+    Update some internal functions to be more consistent and use the right
+    types.
+
+    Add new tests for the new functionality.
+
+  2006-09-11
+  1.0.1
+
+    Version 1.0.1 fixes a small bug reported by Will Welch; the following code
+    did not parse:
+
+    #include <linux/rbtree.h>
+    foo = (struct rb_root) { NULL, };
+
+    Due to the danging ',' character.
+
+  2006-03-02
+  1.0.0
+
+    Initial release.
+
+
+AUTHORS
+
+  Sam Jansen
+  sam@wand.net.nz
+  WAND Network Research Group
+  Department of Computer Science, University of Waikato, Hamilton, New Zealand
+
+vim: textwidth=80 autoindent

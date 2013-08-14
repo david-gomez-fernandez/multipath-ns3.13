@@ -1,0 +1,25 @@
+This disables entropy accounting in the PRNG.
+
+The real fix is to either completely replace random.c,
+providing our own implementation using ns-3 rng infrastructure,
+or feed the prng periodically.
+
+--- a/drivers/char/random.c	2008-05-02 13:17:31.000000000 +0200
++++ b/drivers/char/random.c	2008-07-14 03:23:26.000000000 +0200
+@@ -726,15 +726,7 @@ static size_t account(struct entropy_sto
+ 	unsigned long flags;
+ 
+ 	BUG_ON(r->entropy_count > r->poolinfo->POOLBITS);
++#ifdef CONFIG_NSC
++	/*
++	 * prevent infinite loop: if a code path calls get_random_bytes
++	 * and we've run out of entropy, this calls wake_up_interruptible(),
++	 * which calls the code path again, which calls get_random_bytes,
++	 * which calls wake_up which...
++	 */
++	return nbytes;
++#endif
+-
+ 	/* Hold lock while accounting */
+ 	spin_lock_irqsave(&r->lock, flags);
+ 

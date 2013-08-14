@@ -1,0 +1,35 @@
+The get_user macro calls
+__get_user_{1,2,4}
+depending on sizeof(*ptr).
+Unfortunately, these functions are
+assembler routines that have protoype void fun(void), yet
+they they will modifiy arguments and return a value, so they
+cannot be implemented easily in the cradle code.
+
+The most simple method to work around it is to remove that macro
+if CONFIG_NSC is defined.
+
+--- a/include/asm-x86/uaccess_32.h	2008-07-16 16:56:25.445917584 +0200
++++ b/include/asm-x86/uaccess_32.h	2008-07-16 16:59:11.154137608 +0200
+@@ -152,6 +152,7 @@ extern void __get_user_4(void);
+  * Returns zero on success, or -EFAULT on error.
+  * On error, the variable @x is set to zero.
+  */
++#ifndef CONFIG_NSC
+ #define get_user(x, ptr)						\
+ ({									\
+ 	int __ret_gu;							\
+@@ -174,6 +175,13 @@ extern void __get_user_4(void);
+ 	(x) = (__typeof__(*(ptr)))__val_gu;				\
+ 	__ret_gu;							\
+ })
++#else
++#define get_user(x, ptr)\
++({			\
++	x = *ptr;	\
++	0;		\
++})
++#endif
+ 
+ extern void __put_user_bad(void);
+ 

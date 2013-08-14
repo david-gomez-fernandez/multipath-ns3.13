@@ -1,0 +1,1 @@
+#define	NMMS	1

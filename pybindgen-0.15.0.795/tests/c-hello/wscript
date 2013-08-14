@@ -1,0 +1,32 @@
+## -*- python -*-
+#import Action
+#import Object
+#import Params
+#import Task
+
+if 0:
+    DEPRECATION_ERRORS = '-Werror::DeprecationWarning' # deprecations become errors
+else:
+    DEPRECATION_ERRORS = '-Wdefault::DeprecationWarning' # normal python behaviour
+
+def build(bld):
+    if not bld.env['ENABLE_PYGCCXML']:
+        print "gccxml not available; skipping the C hello demo"
+        return
+
+    bindgen = bld.new_task_gen(
+        features='command',
+        source='hellomodulegen.py hello.h',
+        target='hellomodule.c',
+        command='${PYTHON} %s ${SRC[0]} ${SRC[1]} > ${TGT[0]}' % (DEPRECATION_ERRORS,))
+
+    if bld.env['CXX']:
+        obj = bld.new_task_gen(features='cc cshlib pyext')
+        obj.source = [
+            'hello.c',
+            'hellomodule.c'
+            ]
+        obj.target = 'hello'
+        obj.install_path = None # do not install
+        obj.includes = '.'
+

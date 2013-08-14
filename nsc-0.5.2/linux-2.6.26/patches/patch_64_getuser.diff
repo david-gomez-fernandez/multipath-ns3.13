@@ -1,0 +1,65 @@
+This disables address validations; also there is no 'thread info' in nsc.
+
+diff -r 4a00917c4d5f linux-2.6.26/arch/x86/lib/getuser_64.S
+--- a/linux-2.6.26/arch/x86/lib/getuser_64.S	Thu Aug 07 23:57:46 2008 +0200
++++ b/linux-2.6.26/arch/x86/lib/getuser_64.S	Sat Aug 09 17:49:46 2008 -0700
+@@ -30,15 +30,19 @@
+ #include <asm/dwarf2.h>
+ #include <asm/page.h>
+ #include <asm/errno.h>
++#ifdef CONFIG_NSC
+ #include <asm/asm-offsets.h>
++#endif
+ #include <asm/thread_info.h>
+ 
+ 	.text
+ ENTRY(__get_user_1)
+ 	CFI_STARTPROC
++/* NSC
+ 	GET_THREAD_INFO(%r8)
+ 	cmpq threadinfo_addr_limit(%r8),%rcx
+ 	jae bad_get_user
++*/
+ 1:	movzb (%rcx),%edx
+ 	xorl %eax,%eax
+ 	ret
+@@ -47,11 +51,13 @@ ENDPROC(__get_user_1)
+ 
+ ENTRY(__get_user_2)
+ 	CFI_STARTPROC
++/* NSC
+ 	GET_THREAD_INFO(%r8)
+ 	addq $1,%rcx
+ 	jc 20f
+ 	cmpq threadinfo_addr_limit(%r8),%rcx
+ 	jae 20f
++*/
+ 	decq   %rcx
+ 2:	movzwl (%rcx),%edx
+ 	xorl %eax,%eax
+@@ -63,10 +69,12 @@ ENDPROC(__get_user_2)
+ 
+ ENTRY(__get_user_4)
+ 	CFI_STARTPROC
++/* NSC
+ 	GET_THREAD_INFO(%r8)
+ 	addq $3,%rcx
+ 	jc 30f
+ 	cmpq threadinfo_addr_limit(%r8),%rcx
++*/
+ 	jae 30f
+ 	subq $3,%rcx
+ 3:	movl (%rcx),%edx
+@@ -79,10 +87,12 @@ ENDPROC(__get_user_4)
+ 
+ ENTRY(__get_user_8)
+ 	CFI_STARTPROC
++/* NSC
+ 	GET_THREAD_INFO(%r8)
+ 	addq $7,%rcx
+ 	jc 40f
+ 	cmpq threadinfo_addr_limit(%r8),%rcx
++*/
+ 	jae	40f
+ 	subq	$7,%rcx
+ 4:	movq (%rcx),%rdx

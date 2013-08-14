@@ -1,0 +1,77 @@
+# Identifiers we need to expand due to warning from globaliser
+boot_tvec_bases$expand_decl
+rt6_stats$expand_decl
+
+# We can't globalise current_stack_pointer; it's just a register
+current_stack_pointer$ignored
+
+# Don't globalise these! They are special linker symbols
+__initcall_end$ignored
+__initcall_start$ignored
+__bss_start$ignored
+__con_initcall_end$ignored
+__con_initcall_start$ignored
+__setup_end$ignored
+__setup_start$ignored
+
+# We need to ignore these, else we will get undef. symbols:
+default_ldt$ignored
+vm_stat$ignored
+zone_table$ignored
+
+# Initcalls. These need special handling because they are placed in special
+# sections, which are then interpreted by the linker script to place them in
+# the right order. We can't change the section naming on them, so we can't
+# make the globaliser do its 'section' magic. Instead, we just don't globalise
+# them: it's read-only data, so this is safe.
+__initcall_ah4_init$ignored
+__initcall_atm_init$ignored
+__initcall_bictcp_register$ignored
+__initcall_blackhole_module_init$ignored
+__initcall_cbq_module_init$ignored
+__initcall_cubictcp_register$ignored
+__initcall_dsmark_module_init$ignored
+__initcall_esp4_init$ignored
+__initcall_flow_cache_init$ignored
+__initcall_gred_module_init$ignored
+__initcall_hfsc_init$ignored
+__initcall_hstcp_register$ignored
+__initcall_htb_module_init$ignored
+__initcall_htcp_register$ignored
+__initcall_hybla_register$ignored
+__initcall_inet6_init$ignored
+__initcall_inet_diag_init$ignored
+__initcall_inet_init$ignored
+__initcall_ingress_module_init$ignored
+__initcall_init_basic$ignored
+__initcall_init_fw$ignored
+__initcall_init_rsvp$ignored
+__initcall_init_syncookies$ignored
+__initcall_init_tcindex$ignored
+__initcall_init_u32$ignored
+__initcall_ip_auto_config$ignored
+__initcall_ipgre_init$ignored
+__initcall_net_dev_init$ignored
+__initcall_net_random_reseed$ignored
+__initcall_netem_module_init$ignored
+__initcall_netlink_proto_init$ignored
+__initcall_packet_init$ignored
+__initcall_pktsched_init$ignored
+__initcall_prio_module_init$ignored
+__initcall_proto_init$ignored
+__initcall_rand_initialize$ignored
+__initcall_red_module_init$ignored
+__initcall_sctp_init$ignored
+__initcall_seqgen_init$ignored
+__initcall_sfq_module_init$ignored
+__initcall_sock_init$ignored
+__initcall_tbf_module_init$ignored
+__initcall_tc_filter_init$ignored
+__initcall_tcp_diag_init$ignored
+__initcall_tcp_lp_register$ignored
+__initcall_tcp_scalable_register$ignored
+__initcall_tcp_vegas_register$ignored
+__initcall_tcp_veno_register$ignored
+__initcall_tcp_westwood_register$ignored
+__initcall_teql_init$ignored
+__initcall_timekeeping_init_device$ignored

@@ -1,0 +1,11 @@
+--- 2.6.18/net/ipv4/sysctl_net_ipv4.c	2007-10-05 11:07:25.000000000 -0700
++++ net/ipv4/sysctl_net_ipv4.c	2007-11-19 16:05:16.000000000 -0800
+@@ -129,7 +129,7 @@
+ 	tcp_get_default_congestion_control(val);
+ 	ret = sysctl_string(&tbl, name, nlen, oldval, oldlenp, newval, newlen,
+ 			    context);
+-	if (ret == 0 && newval && newlen)
++	if (ret == 1 && newval && newlen)
+ 		ret = tcp_set_default_congestion_control(val);
+ 	return ret;
+ }

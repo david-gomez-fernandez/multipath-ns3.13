@@ -1,0 +1,29 @@
+# These symbols will be undefined if we globalise them
+ipv4_specific$ignored
+irq_vector$ignored
+zone_table$ignored
+
+# We don't want to globalise these, they are special linker symbols
+_DYNAMIC$ignored
+__bss_start$ignored
+__bss_stop$ignored
+__init_begin$ignored
+__init_end$ignored
+__initcall_start$ignored
+__initcall_end$ignored
+
+# Read-only initcall data, breaks if we globalise (more explanation in
+# linux-2.6.18/global_list.txt).
+__initcall_net_dev_init$ignored
+__initcall_flow_cache_init$ignored
+__initcall_net_random_reseed$ignored
+__initcall_packet_init$ignored
+__initcall_netlink_proto_init$ignored
+__initcall_inet_init$ignored
+__initcall_ah4_init$ignored
+__initcall_ip_auto_config$ignored
+__initcall_tcpdiag_init$ignored
+__initcall_esp4_init$ignored
+__initcall_ipgre_init$ignored
+__initcall_inet6_init$ignored
+__initcall_sctp_init$ignored

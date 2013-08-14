@@ -1,0 +1,22 @@
+current/get_current are provided by nsc.h/nsc support code.
+
+diff -r 4a00917c4d5f linux-2.6.26/include/asm-x86/current_64.h
+--- a/linux-2.6.26/include/asm-x86/current_64.h	Thu Aug 07 23:57:46 2008 +0200
++++ b/linux-2.6.26/include/asm-x86/current_64.h	Sat Aug 09 17:49:46 2008 -0700
+@@ -6,6 +6,7 @@ struct task_struct;
+ 
+ #include <asm/pda.h>
+ 
++#ifndef CONFIG_NSC
+ static inline struct task_struct *get_current(void)
+ {
+ 	struct task_struct *t = read_pda(pcurrent);
+@@ -13,7 +14,7 @@ static inline struct task_struct *get_cu
+ }
+ 
+ #define current get_current()
+-
++#endif // CONFIG_NSC
+ #else
+ 
+ #ifndef ASM_OFFSET_H

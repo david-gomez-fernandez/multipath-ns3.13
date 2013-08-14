@@ -1,0 +1,11 @@
+#define	NCOM	0
+#define	NCOM_ISA	0
+#define	NCOM_ISAPNP	0
+#define	NCOM_COMMULTI	0
+#define	NCOM_PCMCIA	0
+#define	NCOM_PICA	0
+#define	NCOM_ALGOR	0
+#define	NCOM_GSC	0
+#define	NCOM_PUC	0
+#define	NCOM_EBUS	0
+#define	NCOM_DINO	0

@@ -1,0 +1,1 @@
+#define	NATAPISCSI	1

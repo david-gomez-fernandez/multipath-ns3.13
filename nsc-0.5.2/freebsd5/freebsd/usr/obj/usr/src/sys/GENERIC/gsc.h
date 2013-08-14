@@ -1,0 +1,1 @@
+#define NGSC 0

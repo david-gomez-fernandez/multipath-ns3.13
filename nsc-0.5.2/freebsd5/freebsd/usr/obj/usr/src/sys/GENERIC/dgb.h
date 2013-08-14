@@ -1,0 +1,1 @@
+#define NDGB 0

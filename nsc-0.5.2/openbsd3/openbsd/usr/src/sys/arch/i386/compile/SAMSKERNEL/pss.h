@@ -1,0 +1,1 @@
+#define	NPSS	1

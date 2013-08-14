@@ -1,0 +1,1 @@
+#define	NRAID	0

@@ -1,0 +1,26 @@
+# vim: filetype=python
+inputs = [ "static_local", "self_reference", "static_local_self_ref",
+    "attribute", "link_set", "local", "array", "function_pointer", "union",
+    "misc", "goto", "undef_struct", "array_references", "integer_suffix" ]
+# , "broken"
+
+Import('default_env')
+import os.path
+
+env = default_env.Clone()
+curdir = Dir('.').path + '/'
+
+for i in inputs:
+    filename = curdir + '/' + i + '.globals'
+    if os.path.exists(i + '.globals'):
+        o = env.Globaliser(i + '.c',
+                           GLB_FLAGS="-v -v",
+                           GLB_LIST=filename)
+        env.Depends(o, i + ".globals")
+    else:
+        o = env.Globaliser(i + '.c', GLB_FLAGS='-v -v')
+
+    obj = env.Object(i + ".o", o, CCFLAGS = "-Wall -Isim -Wno-unused")
+
+    #if i in [ "array_references" ]:
+    #    env.Program(i + ".exe", obj)

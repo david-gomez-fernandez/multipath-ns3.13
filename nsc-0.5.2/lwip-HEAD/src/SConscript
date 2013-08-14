@@ -1,0 +1,79 @@
+# vim: filetype=python
+
+#  Network Simulation Cradle
+#  Copyright (C) 2003-2005 Sam Jansen
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT
+#  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc., 59
+#  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# $Id: SConscript,v 1.2 2004/06/04 04:48:14 stj2 Exp $
+import glob, os
+
+Import('default_env')
+    
+if default_env['NSC_TARGET_ARCHITECTURE'] == 'amd64':
+  Return()
+
+curdir = Dir('.').path + '/'
+
+include_path = ['include', 'include/ipv4', '../../sim']
+cflags = ' -Wall -g '
+link_flags = ' -Wl,-O1 '
+
+if os.uname()[4] == 'x86_64':
+    cflags += '-m32 '
+    link_flags += '-m32 '
+
+env_cflags = ''
+
+inet_cflags = ''
+
+env = default_env.Clone(
+    CCFLAGS = cflags + env_cflags,
+    CPPPATH = include_path,
+    GLB_LIST = curdir + '/global_list.txt'
+)
+inet_env = default_env.Clone(
+    CCFLAGS = cflags + inet_cflags,
+    CPPPATH = include_path,
+    GLB_LIST = curdir + '/global_list.txt'
+)
+simple_env = Environment(
+    CCFLAGS = cflags,
+    CPPPATH = include_path
+)
+
+core_sources = [
+    'core/tcp.c', 'core/tcp_in.c', 'core/tcp_out.c', 
+    'core/pbuf.c', 'core/stats.c', 
+    'core/netif.c', 'core/udp.c', 'core/raw.c'
+]
+
+sources = [
+    'nsc/sim_support.cpp'
+]
+inet_source = 'core/inet.c'
+simple_source = 'nsc/support.c'
+
+core_sources += glob.glob('core/ipv4/*.c')
+
+sources.extend(env.Globaliser(core_sources))
+sources.extend(inet_env.Globaliser(inet_source))
+sources.extend([simple_env.SharedObject(simple_source)])
+
+env.Append(LINKFLAGS = link_flags)
+
+so = env.SharedLibrary('lwip', sources)
+install = env.Install(dir = "$PREFIX/lib", source = so)
+env.Alias('install', install)

@@ -1,0 +1,16 @@
+--- 2.6.18/include/asm-i386/thread_info.h	2007-10-05 11:07:16.000000000 -0700
++++ include/asm-i386/thread_info.h	2007-10-11 12:00:57.000000000 -0700
+@@ -90,7 +90,13 @@
+ /* how to get the thread information struct from C */
+ static inline struct thread_info *current_thread_info(void)
+ {
++/* EDIT: sjansen for NSC */
++#ifdef CONFIG_NSC
++	extern struct thread_info *nsc_get_current_thread_info(void);
++	return nsc_get_current_thread_info();
++#else
+ 	return (struct thread_info *)(current_stack_pointer & ~(THREAD_SIZE - 1));
++#endif
+ }
+ 
+ /* thread information allocation */

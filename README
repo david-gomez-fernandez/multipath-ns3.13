@@ -1,0 +1,6 @@
+This is the brand new ns-3.13 repository aimed to carry out the addition of a whole new and full-fledged Network Coding scheme for the simulator core.
+
+From this point, we will split the develop branch into three main branches:
+  - Feature-ack --> David
+  - Feature-udp --> Mario 
+  - Feature-more --> Ramón

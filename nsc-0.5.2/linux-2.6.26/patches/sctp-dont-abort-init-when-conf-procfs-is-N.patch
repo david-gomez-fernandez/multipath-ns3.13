@@ -1,0 +1,51 @@
+2.6.26 SCTP aborts the __init function when it cannot create the proc entry.
+The 2.6.26 cradle code currently doesn't implement any procfs stubs,
+so we need to disable the procfs calls. SCTP itself works fine without proc.
+
+--- a/net/sctp/protocol.c	2008-07-13 13:17:31.000000000 +0200
++++ b/net/sctp/protocol.c	2008-07-14 14:39:51.000000000 +0200
+@@ -64,10 +64,7 @@
+ 
+ /* Global data structures. */
+ struct sctp_globals sctp_globals __read_mostly;
++#ifdef CONFIG_PROC_FS
+ struct proc_dir_entry	*proc_net_sctp;
++#endif
++
+ DEFINE_SNMP_STAT(struct sctp_mib, sctp_statistics) __read_mostly;
+ 
+ struct idr sctp_assocs_id;
+@@ -98,7 +95,6 @@ struct sock *sctp_get_ctl_sock(void)
+ }
+ 
+ /* Set up the proc fs entry for the SCTP protocol. */
++#ifdef CONFIG_PROC_FS
+ static __init int sctp_proc_init(void)
+ {
+ 	if (!proc_net_sctp) {
+@@ -132,9 +128,6 @@ out_snmp_proc_init:
+ out_nomem:
+ 	return -ENOMEM;
+ }
++#else
++static inline int sctp_proc_init(void) { return 0; }
++#endif /* CONFIG_PROC_FS */
+ 
+ /* Clean up the proc fs entry for the SCTP protocol.
+  * Note: Do not make this __exit as it is used in the init error
+@@ -142,7 +135,6 @@ static inline int sctp_proc_init(void) {
+  */
+ static void sctp_proc_exit(void)
+ {
++#ifdef CONFIG_PROC_FS
+ 	sctp_snmp_proc_exit();
+ 	sctp_eps_proc_exit();
+ 	sctp_assocs_proc_exit();
+@@ -151,7 +143,6 @@ static void sctp_proc_exit(void)
+ 		proc_net_sctp = NULL;
+ 		remove_proc_entry("sctp", init_net.proc_net);
+ 	}
++#endif
+ }
+ 
+ /* Private helper to extract ipv4 address and stash them in

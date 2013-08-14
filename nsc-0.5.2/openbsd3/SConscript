@@ -1,0 +1,116 @@
+# vim: filetype=python
+
+#  Network Simulation Cradle
+#  Copyright (C) 2003-2005 Sam Jansen
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT
+#  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc., 59
+#  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# $Id$
+from glob import glob
+import os
+
+Import('default_env')
+
+curdir = Dir('.').path + '/'
+
+if default_env['NSC_TARGET_ARCHITECTURE'] == 'amd64':
+  Return()
+
+# Temporarily disabled: there is a file that will not build with gcc 4.2
+#Return()
+
+# Example compile line:
+# cc  -Werror -Wall -Wstrict-prototypes -Wmissing-prototypes 
+# -Wno-uninitialized -Wno-format -Wno-main -march=i486 -fno-builtin-printf
+# -fno-builtin-log -O2  -nostdinc -I. -I/usr/src/sys/arch/i386/compile/SAMSKERNEL/
+# ../../../../arch -I/usr/src/sys/arch/i386/compile/SAMSKERNEL/../../../.. -DDDB 
+# -DDIAGNOSTIC -DKTRACE -DKMEMSTATS -DPTRACE -DCRYPTO -DSYSVMSG -DSYSVSEM -DSYSVSHM
+# -DUVM_SWAP_ENCRYPT -DCOMPAT_43 -DLKM -DFFS -DFFS_SOFTUPDATES -DUFS_DIRHASH -DQUOTA
+# -DEXT2FS -DMFS -DXFS -DTCP_SACK -DTCP_ECN -DTCP_SIGNATURE -DNFSCLIENT -DNFSSERVER
+# -DCD9660 -DMSDOSFS -DFDESC -DFIFO -DKERNFS -DPORTAL -DPROCFS -DNULLFS -DUMAPFS
+# -DUNION -DINET -DALTQ -DINET6 -DIPSEC -DPPP_BSDCOMP -DPPP_DEFLATE -DBOOT_CONFIG
+# -DI586_CPU -DI686_CPU -DUSER_PCICONF -DUSER_LDT -DAPERTURE -DCOMPAT_SVR4
+# -DCOMPAT_IBCS2 -DCOMPAT_LINUX -DCOMPAT_FREEBSD -DCOMPAT_BSDOS -DCOMPAT_AOUT
+# -DPCIVERBOSE -DEISAVERBOSE -DUSBVERBOSE -DWSDISPLAY_COMPAT_USL
+# -DWSDISPLAY_COMPAT_RAWKBD -DWSDISPLAY_DEFAULTSCREENS="6" -DWSDISPLAY_COMPAT_PCVT
+# -DPCIAGP -D_KERNEL -Di386 
+# -c /usr/src/sys/arch/i386/compile/SAMSKERNEL/../../../../netinet/if_ether.c
+# -Werror
+
+env = default_env.Clone(GLB_LIST=curdir + '/global_list.txt')
+env['CCFLAGS'] = ('-Wstrict-prototypes -Wmissing-prototypes '
+    '-Wno-uninitialized -Wno-format -Wno-main -march=i486 -fno-builtin-printf '
+    '-fno-builtin-log -O2  -nostdinc -DDDB -DDIAGNOSTIC -DKTRACE -DKMEMSTATS '
+    '-DPTRACE -DCRYPTO -DSYSVMSG -DSYSVSEM -DSYSVSHM -DUVM_SWAP_ENCRYPT '
+    '-DCOMPAT_43 -DLKM -DFFS -DFFS_SOFTUPDATES -DUFS_DIRHASH -DQUOTA -DEXT2FS '
+    '-DMFS -DXFS -DTCP_SACK -DTCP_ECN -DTCP_SIGNATURE -DNFSCLIENT -DNFSSERVER '
+    '-DCD9660 -DMSDOSFS -DFDESC -DFIFO -DKERNFS -DPORTAL -DPROCFS -DNULLFS '
+    '-DUMAPFS -DUNION -DINET -DALTQ -DINET6 -DIPSEC -DPPP_BSDCOMP '
+    '-DPPP_DEFLATE -DBOOT_CONFIG -DI586_CPU -DI686_CPU -DUSER_PCICONF '
+    '-DUSER_LDT -DAPERTURE -DCOMPAT_SVR4 -DCOMPAT_IBCS2 -DCOMPAT_LINUX '
+    '-DCOMPAT_FREEBSD -DCOMPAT_BSDOS -DCOMPAT_AOUT -DPCIVERBOSE -DEISAVERBOSE '
+    '-DUSBVERBOSE -DWSDISPLAY_COMPAT_USL -DWSDISPLAY_COMPAT_RAWKBD '
+    '-DWSDISPLAY_DEFAULTSCREENS="6" -DWSDISPLAY_COMPAT_PCVT -DPCIAGP '
+    '-D_KERNEL -Di386')
+
+env['CPPPATH'] = [
+    '.', 'openbsd/usr/src/sys/arch/i386/compile/SAMSKERNEL',
+    'openbsd/usr/src/sys/arch/i386/compile/SAMSKERNEL/../../../../arch',
+    'openbsd/usr/src/sys/arch/i386/compile/SAMSKERNEL/../../../..',
+    '../sim']
+
+env['CPPDEFINES'] = { 
+# __OpenBSD__ needs to be defined (but not to anything)
+    '__OpenBSD__':'',
+# This changes the gcc attribute; it doesn't know about kprintf on non-
+# OpenBSD systems I guess.
+    '__kprintf__':'__printf__',
+# deprecated since gcc 4.0, removed in 4.4. replace with va_start
+    '__builtin_stdarg_start':'__builtin_va_start'
+}
+env['CCFLAGS'] += ' -U__FreeBSD__ '
+
+ext_ccflags = ' -g -Wall -O '
+link_flags = ' -Wl,-O1 '
+
+env['CCFLAGS'] += ext_ccflags
+
+sources = []
+
+sim_env = default_env.Clone(CPPFLAGS=ext_ccflags, 
+                            CPPPATH=['../sim', 'support'])
+sources += [sim_env.SharedObject('support/sim_support.cpp')]
+
+# netccitt and netiso have problems compiling.
+# netns has extra external references.
+# not sure why I bother with atalk, ipx and natm
+src_to_globalise = (['kern/uipc_mbuf.c', 'kern/uipc_mbuf2.c', 'kern/kern_subr.c',
+    'kern/uipc_domain.c', 'kern/uipc_socket2.c', 'kern/uipc_socket.c',
+    'kern/kern_timeout.c']
+    + glob('netinet/*.c') + glob('netatalk/*.c') + glob('netipx/*.c')
+    + glob('netnatm/*.c') + glob('netinet6/*.c') + glob('crypto/*.c')
+    + [x for x in glob('net/*.c') if x != 'net/if_arcsubr.c' 
+                                 and x != 'net/if_ieee80211subr.c'
+                                 ]
+    + glob('altq/*.c') + glob('support/*.c'))
+
+# -----------------------------------------------------------------------------
+sources.extend(env.Globaliser(src_to_globalise))
+
+env.Append(LINKFLAGS = link_flags)
+output = env.SharedLibrary(target='openbsd3.5',source=sources)
+
+install = env.Install(dir = "$PREFIX/lib", source = output)
+env.Alias('install', install)

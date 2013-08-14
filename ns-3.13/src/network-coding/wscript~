@@ -1,0 +1,50 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+def configure(conf): 
+    conf.env.append_value('LINKFLAGS', '-lcrypto')
+
+    have_itpp = conf.pkg_check_modules('IT++', 'itpp', mandatory=True)
+    conf.env['ENABLE_ITPP'] = have_itpp
+    conf.report_optional_feature("IT++", "IT++ library",
+                                 conf.env['ENABLE_ITPP'],
+                                 "IT++ not found")
+    if conf.env['ENABLE_ITPP']:
+	conf.env.append_value('CXXFLAGS', '-DNO_INT_SIZE_CHECK')
+
+def build(bld):
+    obj = bld.create_ns3_module('network-coding', ['core','wifi','network','internet','propagation'])
+    obj.source = [
+        'model/network-coding-l4-protocol.cc',
+        'model/simple-network-coding.cc',
+        'model/more-network-coding-protocol.cc',
+        'model/network-coding-header.cc',
+        'model/network-coding-buffer.cc',
+        'helper/network-coding-helper.cc',
+        'model/more-header.cc'            
+        ]
+     
+  
+
+    obj_test = bld.create_ns3_module_test_library('network-coding')
+    obj_test.source = [
+        ]
+    
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'network-coding'
+    headers.source = [
+        'model/network-coding-l4-protocol.h',
+        'model/simple-network-coding.h',
+        'model/more-network-coding-protocol.h',
+        'model/network-coding-header.h',
+        'model/network-coding-buffer.h',
+        'helper/network-coding-helper.h',
+        'model/more-header.h'          
+        ]
+
+    if bld.env['ENABLE_ITPP']:
+          obj.uselib = 'IT++'
+	  obj.env.append_value('CXXDEFINES', "ENABLE_ITPP")
+
+    conf.env.append_value('LINKFLAGS', '-lcrypto')
+       
+  #  bld.ns3_python_bindings()

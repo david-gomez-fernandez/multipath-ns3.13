@@ -1,0 +1,32 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+def build(bld):
+    obj = bld.create_ns3_module('network-coding', ['core','wifi','network','internet','propagation'])
+    obj.source = [
+        'model/network-coding-l4-protocol.cc',
+        'model/simple-network-coding.cc',
+        'model/more-network-coding-protocol.cc',
+        'model/network-coding-header.cc',
+        'model/network-coding-buffer.cc',
+        'helper/network-coding-helper.cc'            
+        ]
+
+    obj_test = bld.create_ns3_module_test_library('network-coding')
+    obj_test.source = [
+        ]
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'network-coding'
+    headers.source = [
+        'model/network-coding-l4-protocol.h',
+        'model/simple-network-coding.h',
+        'model/more-network-coding-protocol.h',
+        'model/network-coding-header.h',
+        'model/network-coding-buffer.h',
+        'helper/network-coding-helper.h'          
+        ]
+
+def configure(conf):
+    conf.env.append_value('LINKFLAGS', '-lcrypto')
+       
+  #  bld.ns3_python_bindings()

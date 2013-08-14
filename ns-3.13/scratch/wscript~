@@ -1,0 +1,18 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+ 
+def build(bld):
+    env = bld.env_of_name('default')
+    #if not env['ENABLE_EXAMPLES']:
+     #   return;
+
+    obj = bld.create_ns3_program('error-model-test', ['core', 'mobility', 'wifi', 'applications', 'config-store', 'tools', 'visualizer'])
+    obj.source = 'error-model-test.cc'
+
+    obj = bld.create_ns3_program('network-coding-test-scenario', ['core', 'mobility', 'wifi', 'applications', 'config-store', 'tools', 'visualizer','network-coding','scenario-creator'])
+    obj.source = 'network-coding-test-scenario.cc'
+
+    obj = bld.create_ns3_program('test-scenario', ['core', 'mobility', 'wifi', 'applications', 'config-store', 'tools', 'visualizer','network-coding','scenario-creator', 'configuration-file', 'hidden-markov-model'])
+    obj.source = 'test-scenario.cc'
+
+    obj = bld.create_ns3_program('sweep-distance', ['core', 'mobility', 'wifi', 'applications', 'config-store', 'tools', 'visualizer','network-coding','scenario-creator', 'configuration-file', 'hidden-markov-model'])
+    obj.source = 'sweep-distance.cc'

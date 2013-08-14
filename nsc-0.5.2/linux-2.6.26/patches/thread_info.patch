@@ -1,0 +1,18 @@
+Ensures that current_thread_info() returns a valid struct thread_info.
+
+--- a/include/asm-x86/thread_info_32.h	2008-05-02 13:16:32.000000000 +0200
++++ b/include/asm-x86/thread_info_32.h	2008-07-14 03:23:36.000000000 +0200
+@@ -89,13 +89,8 @@ register unsigned long current_stack_poi
+ /* how to get the thread information struct from C */
+ static inline struct thread_info *current_thread_info(void)
+ {
++#ifdef CONFIG_NSC
++	extern struct thread_info *nsc_get_current_thread_info(void);
++	return nsc_get_current_thread_info();
++#else
+ 	return (struct thread_info *)
+ 		(current_stack_pointer & ~(THREAD_SIZE - 1));
++#endif
+ }
+ 
+ /* thread information allocation */

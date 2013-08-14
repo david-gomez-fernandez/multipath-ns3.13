@@ -1,0 +1,522 @@
+12/08/10 13:38:00 Sam Jansen <sam@wand.net.nz>
+
+	Version 0.5.2.
+
+	More bug fixes and minor improvements.
+
+21/09/09 08:47:00 Sam Jansen <sam@wand.net.nz>
+
+	Version 0.5.1.
+
+	Miscellaneous bug fixes and compile fixes from Florian Westphal,
+	including gcc 4.4.0 support.
+
+19/11/08 12:08:00 Sam Jansen <sam@wand.net.nz>
+
+	Version 0.5.0.
+
+	Fix bug reported in ns-3
+	(http://www.nsnam.org/bugzilla/show_bug.cgi?id=368) -- sysctl problem.
+
+	Change from Florian to better support getsockname/getpeername: new
+	interface with better support.
+
+
+20/10/08 18:24:00 Sam Jansen <sam@wand.net.nz>
+
+	Version 0.4.1
+
+	Fix compile error with new GCC (bug 334).
+
+	Fix include/asm problem (bug 353).
+
+	Rework FreeBSD5; use the correct checksum file, make code more
+	consistent and maintainable, remove old unused code, add wakeup()
+	support.
+
+	Rework Linux stacks, making code more consistent and maintainable.
+	Remove old references to things no longer used (e.g. electric fence).
+	Modify sysctls to be only defined in one place (sysctl.c).
+
+	Add wakeup() support to lwip-HEAD. Fix socket accepts, the accept list
+	i snow a member of the listening socket rather than the stack.
+
+	Fix bug in ns-2 agent reported by Lawrence Brakmo: incorrect logic for sending.
+	Add Linux 2.6.26 support to the ns-2 agent.
+
+	Add correct wakeup() support to OpenBSD3.
+
+	Remove old scons version, upgrade to new version.
+
+	Big build system rework; SConscript are now more declarative and much
+	more concise. Move build rules into the top-level SConstruct; also all
+	configure functionality there. Clean up a lot, now dependency checking
+	is correct for globalised files. Also fix the 32-bit/64-bit build
+	problems, this should all work seamlessly now. Also allows the user to
+	specify a compiler and C/Link flags in a top-level "custom.py" file.
+
+	Add a simple test framework for NSC. Include some simple TCP stream
+	and interface tests.
+
+	Minor bug fixes (e.g. error returns) due to the testing.
+
+
+26/08/08 11:13:00 Sam Jansen <sam@wand.net.nz>
+
+        Version 0.4.0.
+
+	Incorporate many changes from the Google Summer of Code.
+
+	Linux 2.6.26 included.
+
+	New version of the globaliser.
+
+	Support 64-bit compilation for Linux 2.6.18, 2.6.26.
+
+	Many bug fixes over this time.
+
+	Thanks to the GSOC student Florian Westphal for this many improvements
+	to the NSC.
+
+
+09/01/08 20:49:00 Sam Jansen <sam@wand.net.nz>
+
+	Version 0.3.0
+
+	Incorporate changes from Google.
+
+	Fix typo in INSTALL file.
+
+	Allow specifying globaliser flags in SConscript files.
+
+	Add Linux 2.6.18. Add support for packet schedulers, and basic "tc"
+	support to configure this.
+
+	Change names of shared libraries to always include version
+	information.
+
+	Enable checksums in all stacks. This makes the stacks more consistent,
+	easier to interface with, and reduces the amount of changes required.
+
+	Some refactoring of internal interfaces to make them more consistent.
+	Make things more const correct, use the right types for addresses,
+	etc.
+
+	Change FreeBSD 5.3's stack interrupt handling; now it does not need to
+	call back into the simulator (the end effect is the same).
+
+	Changes to the simulator / stack interface. New support for saying
+	when the NIC has finished sending, old interfaces tidied up and some
+	removed. Add new function to send textual commands to a stack.
+
+	Fix bug in NSCAgent::wakeup() -- only reschdule timer if its already
+	fired.
+
+	Tidy up stack registration code with a macro.
+
+	Add NSC_VERSION macro in stack/simulator interface.
+
+	Globaliser: Update to 1.1.0. See globaliser-specific readme file.
+
+
+
+23/03/06 01:33:16 Sam Jansen <sam@wand.net.nz> [1187]
+
+	* 900/nsc/linux-2.6/nsc/support.c:
+	Minor change that makes the receivers advertised window grow in the same
+	fashion as what we measured on the emulation network. We do this by allocating
+	different size skbuffs in our simulation driver code.
+	
+
+22/03/06 23:35:26 Sam Jansen <sam@wand.net.nz> [1184]
+
+	* 900/nsc/linux-2.6/nsc/support.c:
+	BUGFIX: Fix jiffies: was increasing it way too fast...
+	
+
+18/03/06 04:57:29 Sam Jansen <sam@wand.net.nz> [1165]
+
+	* 900/nsc/linux-2.6/nsc/implemented.c:
+	* 900/nsc/linux-2.6/nsc/sim_support.cpp:
+	* 900/nsc/linux-2.6/nsc/support.c:
+	* 900/nsc/linux-2.6/nsc/unimplemented.c:
+	Fix bugs in Linux2.6 which meant it didn't select as big a window as it should. The
+	same bugs have been fixed in Linux 2.4 quite some time ago.
+	
+	implemented.c: fix __get_free_pages to return a greater amount of memory
+	unimplemented.c: Set jiffies to 1, so timestamps always work. Set num_physpages to
+	    (128*1024), this along with __get_free_pages fixes memory size selection for
+	    TCP buffers.
+	
+	Also a few changes to debugging output, make it a little less verbose.
+	
+	
+
+16/03/06 23:12:44 Sam Jansen <sam@wand.net.nz> [1162]
+
+	* 900/nsc/openbsd3/support/interface.c:
+	Make the openbsd stack handle received packets right away, rather than waiting
+	for the next timer interrupt. I *think* this is more realistic.
+	
+	Note that this will change the results of all openbsd sims now, so I should
+	really re-run everything openbsd. Hrm.
+	
+
+04/03/06 08:00:09 Sam Jansen <sam@wand.net.nz> [1080]
+
+	* 900/nsc/openbsd3/support/sim_support.cpp:
+	Fix buffer size stuff on openbsd, the last commit didn't quite work as it
+	was supposed to.
+	
+
+04/03/06 07:26:13 Sam Jansen <sam@wand.net.nz> [1079]
+
+	* 900/nsc/openbsd3/support/sim_support.cpp:
+	openbsd only supports max sockbut of 256k
+
+04/03/06 06:32:22 Sam Jansen <sam@wand.net.nz> [1078]
+
+	* 900/nsc/linux-2.6/net/ipv4/fib_rules.parsed.c:
+	* 900/nsc/linux-2.6/net/ipv4/ipcomp.parsed.c:
+	* 900/nsc/linux-2.6/net/ipv4/ipip.parsed.c:
+	* 900/nsc/linux-2.6/net/ipv4/xfrm4_input.parsed.c:
+	* 900/nsc/ns/agent/nsc.cc:
+	* 900/nsc/profile-globaliser.sh:
+	removing files we never wanted
+
+04/03/06 06:30:26 Sam Jansen <sam@wand.net.nz> [1077]
+
+	* 900/nsc/freebsd5/support/sim_support.cpp:
+	* Enable setting the socket buffer to sizes larger than 256k-ish. Now set
+	  kern.ipc.maxsockbuf when buffer_size() is called.
+	
+
+03/03/06 04:29:53 Sam Jansen <sam@wand.net.nz> [1067]
+
+	* 900/nsc/globaliser/README:
+	* 900/nsc/globaliser/SConstruct:
+	* 900/nsc/globaliser/global_list.txt:
+	* 900/nsc/globaliser/ilex.cc:
+	* 900/nsc/globaliser/lexer.ll:
+	* 900/nsc/globaliser/node.h:
+	* 900/nsc/globaliser/parser.yy:
+	* 900/nsc/globaliser/sim:
+	* 900/nsc/globaliser/sim/num_stacks.h:
+	Preparing for releasing the globaliser seperately.
+	
+
+27/02/06 21:03:20 Sam Jansen <sam@wand.net.nz> [1055]
+
+	* 900/nsc/lwip-HEAD/src/nsc/sim_support.cpp:
+	Fix up lwIP sending of packets.
+	
+
+27/02/06 10:33:37 Sam Jansen <sam@wand.net.nz> [1054]
+
+	* 900/nsc/openbsd3/support/sim_support.cpp:
+	* 900/nsc/openbsd3/support/socket.c:
+	Fix OpenBSD socket send bug: now reports when data is sent but EAGAIN is
+	returned from the kernel sosend() function. This fixes using OpenBSD with
+	my SURGE model.
+	
+
+20/02/06 23:55:29 Sam Jansen <sam@wand.net.nz> [1044]
+
+	* 900/nsc/lwip-HEAD/src/global_list.txt:
+	Tidy up lwIP globals file. Should still work the same as before, as this
+	was produced from output from the globaliser using the old globals file.
+	
+
+18/02/06 04:20:49 Sam Jansen <sam@wand.net.nz> [1043]
+
+	* 900/nsc/freebsd5/SConscript:
+	* 900/nsc/freebsd5/kern/imgact_elf64.c:
+	* 900/nsc/freebsd5/kern/subr_param.c:
+	* 900/nsc/freebsd5/support/sim_support.cpp:
+	* 900/nsc/freebsd5/support/sim_support.h:
+	* 900/nsc/freebsd5/support/unimplemented_old.c:
+	* 900/nsc/globaliser/test/link_set.c:
+	* 900/nsc/linux-2.6/SConscript:
+	* 900/nsc/linux-2.6/include/asm/checksum.h:
+	* 900/nsc/linux-2.6/nsc/implemented.c:
+	* 900/nsc/linux-2.6/nsc/support.c:
+	* 900/nsc/linux-2.6/nsc/unimplemented.c:
+	* 900/nsc/ns/agent/nsc.cc:
+	* 900/nsc/ns/agent/nsc.h:
+	* 900/nsc/profile-globaliser.sh:
+	Remove freebsd kern file we don't need.
+	
+	Remove old hacked up global_ stuff in freebsd subr_param, unimplemented_old.c
+	
+	Work on ns/agent/nsc.cc:
+	* Look for MSG_EOF and set close_on_empty_
+	* Add close_on_empty_ flag
+	
+	Make Linux 2.6 work with optimisations. Fix malloc_sizes, addd init that comes
+	from mm/slab.c (kmem_cache_init). Not the full routine, just some of it.
+	
+	Fix up profile-globaliser.sh.
+	
+
+03/02/06 04:41:50 Sam Jansen <sam@wand.net.nz> [1040]
+
+	* 900/nsc/profile-globaliser.sh:
+	Add script to profile the globaliser: looks at file size and shared lib
+	size with different NUM_STACKS settings.
+	
+
+19/01/06 16:13:07 Sam Jansen <sam@wand.net.nz> [1025]
+
+	* 900/nsc/freebsd5/support/support.c:
+	Initialise &#34;ticks&#34; to 1. 0 can be bad for various reasons, such as setting
+	your timestamp to 0 in the tcp option, various stacks interpret that in
+	different ways. Setting it to 1 is more realistic.
+	
+
+19/01/06 16:12:12 Sam Jansen <sam@wand.net.nz> [1024]
+
+	* 900/nsc/openbsd3/support/support.c:
+	Check for finding sysctl function, return error if no function found.
+	
+
+16/01/06 18:26:00 Sam Jansen <sam@wand.net.nz> [1018]
+
+	* 900/nsc/freebsd5/support/unimplemented.c:
+	Fix memory leak.
+	
+	uma_zalloc_arg was not calling the dtor or fini routines for the zone. This
+	ended up meaning MbufClust-allocated 2048 size bits of memory were not being
+	freed.
+	
+
+09/01/06 11:03:34 Sam Jansen <sam@wand.net.nz> [1011]
+
+	* 900/nsc/openbsd3/SConscript:
+	Fix voodoo undefined reference problem.
+	
+
+13/12/05 16:48:09 Sam Jansen <sam@wand.net.nz> [1005]
+
+	* 900/nsc/freebsd5/support/default_route.c:
+	* 900/nsc/freebsd5/support/sim_support.cpp:
+	* 900/nsc/freebsd5/support/support.c:
+	* 900/nsc/linux-2.6/nsc/sim_support.cpp:
+	Support returning how much was written in FreeBSD5. Perhaps with some minor
+	bugfixes.
+	
+	Make Linux 2.6 not print out sysctl info and assert that there was no error
+	when performing a sysctl.
+	
+
+13/12/05 16:39:10 Sam Jansen <sam@wand.net.nz> [1004]
+
+	* 900/nsc/linux-2.4/nsc/globals.c:
+	* 900/nsc/linux-2.4/nsc/implemented.c:
+	* 900/nsc/linux-2.4/nsc/sim_support.cpp:
+	Fix a bug with the memory being &#34;reported&#34; being too low, so TCP was selecting
+	a small buffer size.
+	
+
+13/12/05 16:02:47 Sam Jansen <sam@wand.net.nz> [1003]
+
+	* 900/nsc/ns/agent/nsc.cc:
+	Fix up auto_conf stuff.
+	
+
+24/11/05 05:20:42 Sam Jansen <sam@wand.net.nz> [975]
+
+	* 900/nsc/ns/agent/nsc.cc:
+	Add autoConf_ NSC stack directive. eg.
+	
+	    Agent/TCP/NSC set autoConf_ 0
+	
+	    (it defaults to 1 (true))
+	
+	It only makes sense to set globally like that. Once a stack is created it does
+	not use the variable anymore.
+	
+	It means the window_ and packetSize_ are not bound, hence they are not set
+	by ns-2 at startup.
+	
+
+23/11/05 01:25:50 Sam Jansen <sam@wand.net.nz> [945]
+
+	* 900/nsc/globaliser/test/array.c:
+	* 900/nsc/globaliser/test/array.globals:
+	Add array test files.
+	
+
+23/11/05 01:17:07 Sam Jansen <sam@wand.net.nz> [944]
+
+	* 900/nsc/openbsd3/support/support.c:
+	Make OpenBSD no longer output its copyright notice.
+	
+
+23/11/05 01:06:27 Sam Jansen <sam@wand.net.nz> [942]
+
+	* 900/nsc/lwip-HEAD/CHANGELOG:
+	* 900/nsc/lwip-HEAD/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/apps/chargen/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/6502/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/6502/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/FILES:
+	* 900/nsc/lwip-HEAD/contrib/ports/c16x/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/c16x/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/c16x/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/c16x/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/coldfire/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/coldfire/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/coldfire/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/coldfire/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/coldfire/proj/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/net/lwip_tcpip/current/cdl/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/net/lwip_tcpip/current/include/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/net/lwip_tcpip/current/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/net/lwip_tcpip/current/src/ecos/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/ecos/ecos/net/lwip_tcpip/current/tests/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/msvc6/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/msvc6/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/rtxc/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/rtxc/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/rtxc/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/rtxc/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/list.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/sio.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/tapif.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/tunif.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/netif/unixif.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/lib/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/lib/lwipopts.h:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/Makefile:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/echo.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/lwipopts.h:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/main.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/minimal/mintapif.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/Makefile:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/apps/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/apps/fs/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/apps/fs/img/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/apps/shell.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/lwipopts.h:
+	* 900/nsc/lwip-HEAD/contrib/ports/unix/proj/unixsim/simhost.c:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/include/arch/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/sw_services/lwip_v1_00_a/data/CVS/Entries:
+	* 900/nsc/lwip-HEAD/contrib/ports/v2pro/sw_services/lwip_v1_00_a/src/CVS/Entries:
+	* 900/nsc/lwip-HEAD/doc/CVS/Entries:
+	* 900/nsc/lwip-HEAD/doc/rawapi.txt:
+	* 900/nsc/lwip-HEAD/src/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/api/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/core/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/core/inet.c:
+	* 900/nsc/lwip-HEAD/src/core/ipv4/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/core/ipv6/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/core/tcp.c:
+	* 900/nsc/lwip-HEAD/src/core/tcp_in.c:
+	* 900/nsc/lwip-HEAD/src/core/tcp_out.c:
+	* 900/nsc/lwip-HEAD/src/core/udp.c:
+	* 900/nsc/lwip-HEAD/src/include/ipv4/lwip/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/include/ipv6/lwip/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/include/lwip/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/include/lwip/lwipopts.h:
+	* 900/nsc/lwip-HEAD/src/include/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/netif/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/netif/ppp/CVS/Entries:
+	* 900/nsc/lwip-HEAD/src/netif/ppp/lcp.c:
+	* 900/nsc/lwip-HEAD/src/netif/slipif.c:
+	* 900/nsc/lwip-HEAD/src/nsc/sim_support.cpp:
+	* 900/nsc/lwip-HEAD/src/nsc/support.c:
+	* 900/nsc/ns/agent/nsc.cc:
+	* 900/nsc/sim/sim_interface.h:
+	Update lwIP to CVS HEAD.
+	
+	Make nsc ns-2 agent flush dumped pcap output all the time. Probably slower,
+	but helps a lot when debugging.
+	
+	Add virtual destructors to interface. This means everything needs to be
+	rebuilt. No change in functionality though.
+	
+	Add an assert to lwIP to make sure the MTU is 1500, it is all that stack
+	supports.
+	
+
+08/11/05 06:51:00 Sam Jansen <sam@wand.net.nz> [927]
+
+	* 900/nsc/SConstruct:
+	* 900/nsc/freebsd5/SConscript:
+	Small updates and notes, nothing important
+
+08/11/05 06:49:55 Sam Jansen <sam@wand.net.nz> [926]
+
+	* 900/nsc/freebsd5/make_prepro_stats.sh:
+	shell script to analyse globaliser output file sizes
+
+08/11/05 03:21:33 Sam Jansen <sam@wand.net.nz> [925]
+
+	* 900/nsc/globaliser/node.h:
+	* 900/nsc/globaliser/test/SConscript:
+	* 900/nsc/globaliser/test/function_pointer.c:
+	* 900/nsc/globaliser/test/function_pointer.globals:
+	Add new test case for function pointers.
+	
+	Add some notes about how function pointers are globalised incorrectly.
+	
+
+13/10/05 16:06:04 Sam Jansen <sam@wand.net.nz> [886]
+
+	* 900/nsc/linux-2.4/SConscript:
+	* 900/nsc/openbsd3/SConscript:
+	Add some stuff to allow NSC to build on the laptop, which uses gcc 4.0 
+	as the default system compiler.
+	
+
+26/05/05 17:09:14 Sam Jansen <sam@wand.net.nz> [860]
+
+	* 900/nsc/ChangeLog:
+	* 900/nsc/freebsd5/support/sim_support.cpp:
+	* 900/nsc/freebsd5/support/support.c:
+	* 900/nsc/linux-2.4/nsc/sim_support.cpp:
+	* 900/nsc/linux-2.4/nsc/support.c:
+	* 900/nsc/linux-2.6/SConscript:
+	* 900/nsc/linux-2.6/asm:
+	* 900/nsc/linux-2.6/asm/getuser.S:
+	* 900/nsc/linux-2.6/include/config/x86/wp/works/ok.h:
+	* 900/nsc/linux-2.6/include/linux/autoconf.h:
+	* 900/nsc/linux-2.6/nsc/implemented.c:
+	* 900/nsc/linux-2.6/nsc/sim_support.cpp:
+	* 900/nsc/linux-2.6/nsc/support.c:
+	* 900/nsc/linux-2.6/nsc/unimplemented.c:
+	* 900/nsc/ns/agent/nsc.cc:
+	* 900/nsc/ns/tcl/nsc/simple.tcl:
+	* 900/nsc/openbsd3/support/sim_support.cpp:
+	* freebsd5/support: Fix sysctl to return the right value. Implement
+	buffer_size.
+	
+	* ns/agent/nsc.cc: Re-enable buffer_size. Still need some way to
+	enable/disable this functionality.
+	
+	* linux-2.4/nsc: Add setting of more sysctl values and understand/
+	parse more sysctl names (tcp_rmem and so on). Fix some type warnings.
+	
+	* linux-2.6/include: Turn CONFIG_X86_WP_WORKS_OK off so copying to
+	userspace is simplified. I'm fairly sure this isn't important now, but
+	it seemed like it was earlier.
+	
+	* linux-2.6/nsc: Implement __copy_to_user_ll, port linux-2.4 sysctl
+	changes over, fix nsc_g_diagnostic naming, remove __get_user_* funcs.
+	Implement some proc handlers. Initialise current-&gt;thread_info
+	properly. Fix debug output of nsc_sysctl_a(). Add getuser.S with
+	modifications so it doesn't check stuff.
+	
+	* openbsd3/support: Add error checking to buffer_size.

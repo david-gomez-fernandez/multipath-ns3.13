@@ -1,0 +1,83 @@
+# vim: filetype=python
+
+#  Network Simulation Cradle
+#  Copyright (C) 2003-2005 Sam Jansen
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT
+#  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc., 59
+#  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# $Id$
+import glob, os
+import os.path
+
+Import('default_env')
+
+if default_env['NSC_TARGET_ARCHITECTURE'] == 'amd64':
+  Return()
+
+curdir = Dir('.').path + '/'
+
+include_path = [ 
+    '#/-',
+    'override', '.',
+    'freebsd/usr/src/sys',
+    'freebsd/usr/src/sys/dev',
+    'freebsd/usr/src/sys/contrib/dev/acpica',
+    'freebsd/usr/src/sys/contrib/ipfilter',
+    'freebsd/usr/obj/usr/src/sys/GENERIC',
+    'freebsd/usr/obj/usr/src/sys/VEGAS-SMP',
+    'freebsd/usr/obj/usr/src/sys/VEGAS',
+    'freebsd/usr/include',
+    '../sim',
+    '#//usr/include' ]
+
+# Note that we *need* to use -O here (optimised build). Without it, the
+# checksum code calculates incorrect checksums and FreeBSD does not work
+# correctly.
+cflags = ('-nostdinc -D__FreeBSD__=5 -D_KERNEL -include ' + curdir +
+    '/freebsd/usr/obj/usr/src/sys/GENERIC/opt_global.h '
+    '-fno-common -ffreestanding -Wall -std=c99 -O -g')
+glb_cflags = ('-Dmalloc=nsc_malloc -Dfree=nsc_free -Drealloc=nsc_realloc '
+    '-Dcalloc=nsc_calloc -Dlog=nsc_log -Dprintf=nsc_printf')
+
+link_flags = ' -Wl,-O1'
+
+env = default_env.Clone(CCFLAGS=cflags, CPPPATH=include_path,
+			LINKFLAGS = link_flags,
+                        GLB_CCFLAGS=glb_cflags,
+                        GLB_LIST=curdir + '/global_list_pre.txt')
+
+env['CPPDEFINES'] = {
+# deprecated since gcc 4.0, removed in 4.4. replace with va_start
+	'__builtin_stdarg_start':'__builtin_va_start'
+}
+
+cppenv = default_env.Clone(CCFLAGS='-Wall -g', CPPPATH=['../sim'])
+
+dirs_to_process = ['support', 'kern', 'netinet', 'net', 'netinet6', 
+    'netkey', 'crypto', 'crypto/des', 'crypto/cast128', 'crypto/blowfish',
+    'crypto/rc4', 'crypto/rijndael', 'crypto/sha2',
+    'freebsd/usr/obj/usr/src/sys/GENERIC', 'i386/i386']
+
+globalised = []
+for i in dirs_to_process: 
+  globalised.extend(env.Globaliser(glob.glob(i + '/*.c')))
+
+other_sources = [cppenv.SharedObject(x) for x in ['support/sim_support.cpp']]
+
+# The final output: shared library
+so = env.SharedLibrary('freebsd5.3', globalised + other_sources)
+
+install = env.Install(dir = "$PREFIX/lib", source = so)
+env.Alias('install', install)

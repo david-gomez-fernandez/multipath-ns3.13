@@ -1,0 +1,2 @@
+These are all NSC modifications that were made to the 2.6.26 codebase.
+The patch_64* diffs are only relevant for x86_64.

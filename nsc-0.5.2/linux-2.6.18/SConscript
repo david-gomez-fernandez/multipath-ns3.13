@@ -1,0 +1,174 @@
+# vim:filetype=python
+
+#  Network Simulation Cradle
+#  Copyright (C) 2003-2005 Sam Jansen
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT
+#  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc., 59
+#  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+import os, glob
+
+Import('default_env')
+
+stackname = 'linux2.6.18'
+arch_i386 = default_env['NSC_TARGET_ARCHITECTURE'] != 'amd64'
+curdir = Dir('.').path + '/'
+
+net = {}
+net['core'] = Split("""
+datagram.c   ethtool.c        iovec.c                    sock.c
+dev.c        filter.c         link_watch.c               stream.c
+dev_mcast.c  flow.c           neighbour.c   rtnetlink.c  sysctl_net_core.c
+dst.c        gen_estimator.c  net-sysfs.c   scm.c        utils.c
+             gen_stats.c      skbuff.c      netevent.c         
+request_sock.c""")
+net['ethernet'] = Split("""
+eth.c""")
+net['ipv4'] = Split("""
+af_inet.c        icmp.c                     syncookies.c       udp.c
+ah4.c            igmp.c         ipconfig.c  sysctl_net_ipv4.c  
+arp.c            inetpeer.c                 tcp.c                            
+datagram.c       ip_forward.c   ipmr.c      inet_diag.c                       
+devinet.c        ip_fragment.c              tcp_input.c                     
+esp4.c           ip_gre.c                   tcp_ipv4.c                       
+fib_frontend.c   ip_input.c     proc.c      tcp_minisocks.c
+fib_hash.c       ip_options.c   protocol.c  tcp_output.c
+                 ip_output.c    raw.c       
+fib_semantics.c  ip_sockglue.c  route.c     tcp_timer.c
+inet_connection_sock.c
+tcp_cong.c	tcp_cubic.c	tcp_highspeed.c
+tcp_htcp.c	tcp_vegas.c	tcp_veno.c	tcp_westwood.c
+inet_hashtables.c		tcp_diag.c	tcp_scalable.c
+inet_timewait_sock.c 		tcp_hybla.c	tcp_lp.c
+tcp_bic.c""")
+net['ipv6'] = Split("""
+addrconf.c                                    protocol.c         udp.c
+af_inet6.c  icmp.c           ipv6_sockglue.c  raw.c                           
+            ip6_fib.c        ipv6_syms.c      reassembly.c                     
+anycast.c   ip6_flowlabel.c  mcast.c          route.c                          
+datagram.c  ip6_input.c      ndisc.c          sit.c                           
+            ip6_output.c                      sysctl_net_ipv6.c                
+exthdrs.c                    proc.c           tcp_ipv6.c
+inet6_hashtables.c	     inet6_connection_sock.c""")
+net['sctp'] = Split("""
+associola.c  endpointola.c  outqueue.c       sm_statefuns.c   tsnmap.c
+bind_addr.c  input.c        primitive.c      sm_statetable.c  ulpevent.c
+chunk.c      inqueue.c      proc.c           socket.c         ulpqueue.c
+command.c    ipv6.c         protocol.c       ssnmap.c
+crc32c.c                    sm_make_chunk.c  sysctl.c
+debug.c      output.c       sm_sideeffect.c  transport.c""")
+net['netlink'] = Split("""
+af_netlink.c""")
+net['packet'] = ['af_packet.c']
+net['sched'] = Split("""
+              cls_api.c        cls_u32.c    sch_atm.c             sch_hfsc.c
+              cls_basic.c                   sch_blackhole.c       sch_htb.c
+              cls_fw.c                      sch_cbq.c             sch_ingress.c
+                                            sch_dsmark.c          sch_netem.c
+                                            sch_fifo.c            sch_prio.c
+              cls_rsvp.c                    sch_generic.c         sch_red.c
+                                                                  sch_sfq.c
+              cls_rsvp6.c      estimator.c                        sch_tbf.c
+              cls_tcindex.c    sch_api.c    sch_gred.c            sch_teql.c
+""") 
+net['.'] = ['socket.c', 'sysctl_net.c']
+
+# This array specifies the order. This order is used when linking; we need
+# to make sure things are linked in the correct order so the initialisation
+# functions -- initcall functions -- are called in the correct order.
+# There was a problem earlier where sctp_init was being called before
+# inet_init, which caused problems. The array below fixes that.
+dir_order = ['.', 'core', 'packet', 'sched', 'netlink', 'ethernet', 'ipv4', 
+    'ipv6', 'sctp']
+src_to_globalise = reduce(lambda x,y:x+y,
+    [['net/' + d + '/' + f for f in net[d]] for d in dir_order])
+
+src_to_globalise.extend([ 
+    'nsc/unimplemented.c', 'nsc/implemented.c', 'nsc/support.c',
+    'nsc/sysctl.c', 'nsc/tc.c', 'nsc/stub.c',
+    'kernel/softirq.c', 'kernel/timer.c', 'kernel/itimer.c', 'kernel/sysctl.c',
+    'kernel/rwsem.c', 'drivers/net/loopback.c', 'drivers/char/random.c',
+    'lib/rbtree.c'])
+
+sim_sources = ['nsc/sim_support.cpp']
+asm_sources = []
+
+if arch_i386:
+    linker_script = 'arch/i386/kernel/linker-script-full.ld'
+    asm_sources.extend(['arch/i386/lib/getuser.S', 'arch/i386/lib/checksum.S'])
+    src_to_globalise.extend(['arch/i386/lib/bitops.c'])
+else:
+    linker_script = 'arch/x86_64/kernel/linker-script.ld'
+    asm_sources.extend(['arch/x86_64/lib/csum-copy.S'])
+    src_to_globalise.extend(['arch/x86_64/lib/csum-partial.c',
+        'arch/x86_64/lib/csum-wrappers.c', 'arch/x86_64/lib/bitops.c'])
+
+# -----------------------------------------------------------------------------
+cflags = ('-D__KERNEL__ -Wall -Wstrict-prototypes -Wno-trigraphs -nostdinc '
+    '-fno-inline -iwithprefix include -DKBUILD_BASENAME=\\"clnt\\" '
+    '-DKBUILD_MODNAME=\\"nsc\\" -DMODVERSIONS -DEXPORT_SYMTAB '
+    '-include linux/config.h -g ')
+
+# You really need to undefine whatever symbol is defined for the operating
+# system you are compiling on and make sure the various linux symbols are
+# defined. __linux__ is the only important one I've found; though compilers
+# tend to define __linux and __Linux__ and so on and so forth.
+cflags += ' -U__FreeBSD__ -D__linux__=1 -Dlinux=1 -D__linux=1 '
+
+glb_cflags = '-include nsc_override.h '
+
+include_path = ['include', 'include/asm/mach-default', '../sim', 'nsc',
+    'override']
+
+# We need a special linker script to set up some variables for
+# initialisation in Linux
+# Using Program and -shared is a hacky way to make a shared library in SCons
+# without requiring -fPIC (which cannot be used, as inline assembler uses
+# registers that cannot be used when with -fPIC).
+link_flags = ' -Wl,-O1 -shared -Wl,-T' + curdir + linker_script
+ext_cflags = ' '
+as_flags = ' '
+
+try:
+    os.unlink('include/asm')	
+except OSError:
+    pass
+
+if arch_i386:
+    os.symlink("asm-i386", "include/asm")
+else:
+    os.symlink("asm-x86_64", "include/asm")
+    ext_cflags += '-fPIC '
+    as_flags += '-fPIC '
+
+cflags += ext_cflags
+
+# -----------------------------------------------------------------------------
+env = default_env.Clone(CCFLAGS=cflags, CPPPATH=include_path,
+			LINKFLAGS = link_flags,
+			ASFLAGS = as_flags,
+                        GLB_CCFLAGS=glb_cflags,
+                        GLB_LIST=curdir + '/global_list.txt')
+sim_env = default_env.Clone(CCFLAGS='-g -Wall -O2 ' + ext_cflags,
+                            CPPPATH=['../sim', 'nsc'])
+
+objects = env.Globaliser(src_to_globalise)
+objects.extend([sim_env.SharedObject(s) for s in sim_sources])
+objects.extend(asm_sources)
+
+
+output = env.Program(source=objects, target='lib%s.so' % stackname)
+
+install = env.Install(dir = "$PREFIX/lib", source = output)
+env.Alias('install', install)

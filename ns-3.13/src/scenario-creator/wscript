@@ -1,0 +1,47 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+def build(bld):  
+
+    obj = bld.create_ns3_module('configuration-file', ['core','wifi','network','internet','propagation'])
+    obj.source = [
+        'config/configuration-file.cc'            
+        ]
+
+    obj_test = bld.create_ns3_module_test_library('configuration-file')
+    obj_test.source = [
+        ]
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'configuration-file'
+    headers.source = [
+        'config/configuration-file.h'            
+        ]    
+
+
+    obj = bld.create_ns3_module('scenario-creator', ['core','wifi','network','internet','propagation', 'configuration-file'])
+    obj.source = [
+        'model/configure-scenario.cc',
+        'model/proprietary-tracing.cc',            
+        ]
+
+    obj_test = bld.create_ns3_module_test_library('scenario-creator')
+    obj_test.source = [
+        ]
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'scenario-creator'
+    headers.source = [
+        'model/configure-scenario.h',
+        'model/proprietary-tracing.h',           
+        ]    
+
+
+
+#if bld.env['ENABLE_GSL']:
+#      obj.use.extend(['GSL', 'GSLCBLAS', 'M'])
+#      obj_test.use.extend(['GSL', 'GSLCBLAS', 'M'])
+
+#if (bld.env['ENABLE_EXAMPLES']):
+#     bld.add_subdirs('examples')
+
+#bld.ns3_python_bindings()

@@ -1,0 +1,1 @@
+#define	NPCIBIOS	1

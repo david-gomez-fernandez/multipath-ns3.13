@@ -1,0 +1,1 @@
+#define	NWDT	0

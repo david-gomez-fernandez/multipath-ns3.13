@@ -1,0 +1,90 @@
+diff -ru ./Makefile.in /home/stj2/ns-allinone-2.28/ns-2.28/Makefile.in
+--- ./Makefile.in	2005-01-26 11:27:16.000000000 +1300
++++ /home/stj2/ns-allinone-2.28/ns-2.28/Makefile.in	2005-05-18 15:30:00.000000000 +1200
+@@ -69,7 +69,7 @@
+ 	-I./diffusion3/lib/nr -I./diffusion3/ns \
+ 	-I./diffusion3/filter_core -I./asim/ -I./qs \
+ 	-I./diffserv \
+-	-I./wpan
++	-I./wpan -Insc/sim
+ 
+ 
+ LIB	= \
+@@ -301,6 +301,7 @@
+ 	wpan/p802_15_4nam.o wpan/p802_15_4phy.o \
+ 	wpan/p802_15_4sscs.o wpan/p802_15_4timer.o \
+ 	wpan/p802_15_4trace.o wpan/p802_15_4transac.o \
++	nsc/ns/agent/nsc.o \
+ 	@V_STLOBJ@
+ 
+ 
+diff -ru ./tcl/lib/ns-agent.tcl /home/stj2/ns-allinone-2.28/ns-2.28/tcl/lib/ns-agent.tcl
+--- ./tcl/lib/ns-agent.tcl	2005-01-20 07:23:37.000000000 +1300
++++ /home/stj2/ns-allinone-2.28/ns-2.28/tcl/lib/ns-agent.tcl	2005-05-19 16:28:55.000000000 +1200
+@@ -192,3 +192,54 @@
+ Agent/AODV set sport_   0
+ Agent/AODV set dport_   0
+ 
++# srtt_  rttvar_  backoff_ cwnd_  seqno_ ack_  ssthresh_   rxtcur_
++
++# I wonder if any of this works. -stj2
++# it seems to -- for any Agent/TCP/NSC/* stack!
++Agent/TCP/NSC instproc set {args} {
++    set nsc_args {
++        window_
++        packetSize_
++        srtt_
++        rttvar_
++        backoff_
++        cwnd_
++        seqno_
++        ack_
++        ssthresh_
++        rxtcur_
++    }
++    #puts "#--# stj2:: set instproc $self ($args)"
++    #for {set i [info level]} { $i > 0 } {incr i -1 } {
++    #    puts "${i}: [info level $i]"
++    #}
++    if {[lsearch $nsc_args [lindex $args 0]] != -1} {
++        if {[llength $args] > 1} {
++            set arg1 [lindex $args 0]
++            set arg2 [lindex $args 1]
++            #puts "#--# step 2"
++            #puts "[[$self info class] info instprocs]"
++
++            if { [lsearch [[$self info class] info instprocs] cmd] == -1 } {
++                #puts "#---# Too early."
++                # We must be being called early on before things are set up/
++                # initialised properly. In this case we should just pass on
++                # to the next shadowed procedure, we can't do much at this
++                # stage.
++                return [eval $self next $args]
++            }
++            
++            #puts "Calling nsc_set $arg1 $arg2"
++            set err [catch {
++                $self nsc_set $arg1 $arg2 
++            } errmsg]
++            global errorInfo
++            if {$err} { puts "Error: $errmsg ($errorInfo)" }
++            #puts "#--# step 3"
++        } else {
++            return [$self nsc_get [lindex $args 0]]
++        }
++    }
++    #puts "end $args"
++    eval $self next $args
++}
+diff -ru ./tcl/lib/ns-default.tcl /home/stj2/ns-allinone-2.28/ns-2.28/tcl/lib/ns-default.tcl
+--- ./tcl/lib/ns-default.tcl	2005-01-20 07:23:37.000000000 +1300
++++ /home/stj2/ns-allinone-2.28/ns-2.28/tcl/lib/ns-default.tcl	2005-05-11 12:57:59.000000000 +1200
+@@ -1162,6 +1162,8 @@
+ 	Agent/TCP/BayFullTcp/Sack set max_sack_blocks_ 3; # max # of sack blks
+ }
+ 
++Agent/TCP/NSC set bytes_ 0
++
+ # Default values used by wireless simulations
+ Agent/Null set sport_           0
+ Agent/Null set dport_           0

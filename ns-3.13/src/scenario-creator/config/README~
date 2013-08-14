@@ -1,0 +1,86 @@
+Points to take into account to create a configuration file.
+   - The file MUST have the extension ".config" to be correctly parsed by the simulator.
+   - The content is split into three realms: the first one sets the main parameters that configure the simulation (i.e. number of packets and its length, number of simulations), the second one is related 
+     the stack definition (i.e. transport layer, channel model) and, finally, the last one selects the system output, such as if there will be any kind of tracing enabled (proprietary, PCAP or ASCII) or if 
+     we want to verbose the information related to the WiFi level.
+
+For the sake of a better and faster use of this model, in the following points we will describe the particularities a potential user should take into account in order to correctly define a scenario:
+  [SCENARIO]
+    -RUN=5	     	   --> Number of simulations to be carried out
+    -RUN_OFFSET=0	   --> There will be concrete moments when we want to start a simulation campaign and don't want to start with the first one (i.e. unexpected failure). With this value, the first simulation will hold the value, and continue from this one
+    -NUM_PACKETS=1000	   --> Number of packets that will be sent from the source nodes (for each one), that is to say, the application layer for each node will receive this value.
+    -PACKET_LENGTH=1460	   --> Packet length (at application layer).
+    -FER=0.2		   --> FER of the configured links which are prone to a configurable FER value (please read the documentation inside the "scenarios" folder). FER € [0,1] (double)
+
+  [STACK]
+    -TRANSPORT_PROTOCOL=TCP/UDP    				--> Define the transport protocol (Default: TCP)
+    -NETWORK_CODING=0/1						--> Enable/disable the NC layer
+    -ROUTING_PROTOCOL=POPULATE/OLSR/AODV/STATIC/STATIC_GRAPH	--> Routing protocol (Default:AODV)   !!! IMPORTANT: Logically, a random deployment cannot use a static routing scheme, since we don't know where the nodes will be deployed
+	*STATIC_GRAPH --> Define the route from the source to the destination nodes (i.e. 10 3 5 19 34, being 10 the source node and 34 the sink node)
+	**NOTE: If we have selected a static routing scheme, we need to pass as argument the file name which contains the static routing table.
+    -STATIC_ROUTING_TABLE=x-static-routing.conf 		--> Static routing table file 
+
+
+    -PROPAGATION_LOSS_MODEL=RATE/DEFAULT/HMM/BEAR		--> Channel model (Default: RATE)
+       1- RATE --> The FER value will be directly the error rate of all the selected links: 
+       2- DEFAULT --> The same as above
+       3- HMM --> We need to give the parser the name of the files which hold the transition/decision matrices
+       4- BEAR --> We need to pass the name of the file which contains the AR coefficients
+
+       (NEW)*5- MANUAL --> The scenario description file (i.e. x-channel-sides.conf) will hold the information related to the FER values that will be set throughout the links
+ 			
+    -NODE_DEPLOYMENT=CODE/FILE/RANDOM			--> Way to deplo the nodes
+       1- CODE --> The more advanced case; we will construct the scenario "manually". NOT IMPLEMENTED YET
+       2- FILE --> As its name shows, depends on two files which defines the scenario: the node deployment, with the requested additional information (i.e. traffic flows, network coding layer enabled/disabled) and the link error rate configuration
+	  2.1-SCENARIO_DESCRIPTION=two-nodes-scenario.conf
+    	  2.2-CHANNEL_CONFIGURATION=two-nodes-channel.conf
+       3- RANDOM --> In this case, we will randomly deploy the nodes. For that purpose, we will assume a rectangle-shaped area, and we will need the following parameters:
+	  3.1- NODES_NUMBER=20 	  	--> Doesn't need any explanation
+	  3.2- MAX_X=100		--> By default, the southwest rectangle corner will be located in [0,0]. With this value we will fix the abscissa axis 
+  	  3.3- MAX_Y=100		--> The same as above, but for the coordinates axis
+	  3.4- DATA_FLOWS=2		--> One source/sink for each flow
+
+  [NETWORK_CODING]
+    -ENABLED=0/1					--> Enable/disable the NC layer (disabled by default)
+    -PROTOCOL=SimpleNetworkCoding / 
+	      MoreNetworkCodingProtocol			--> Select the mode to insert into the nodes 
+    -BUFFER_SIZE=10					--> Size (in packets) that an input packet pool is able to store
+    -BUFFER_TIMEOUT=40					--> Sojourn time (in milliseconds) of a packet in the NC buffering environment
+    -MAX_CODED_PACKETS_TOGETHER=2  			--> Maximum number of packets to be coded together with (intuitively, MAX_CODED_PACKETS_TOGETHER<=DATA_FLOWS). IMPORTANT: If 0 --> Unlimited coded packets
+
+  [MULTIPATH] --> Not implemented yet
+    -ENABLED=0/1		--> Enable/disable the Multipath TCP scheme (disabled by default)
+    -MAX_SUBFLOWS 		--> Set the maximum number of subflows which a legacy subflow will be split into
+    -REORDERING_PROTOCOL=0
+    -PROTOCOL_CWND=0
+
+  [OUTPUT]
+    -NETWORK_CODING_TRACING=0   	--> Proprietary tracing (Network Coding Layer)
+    -NETWORK_CODING_SHORT_TRACING = 0	--> Proprietary tracing (Network Coding Layer: Summarized format ... 1 line per simulation run)
+    -TRACING=1				--> Proprietary tracing (Physical Layer)
+    -PCAP_TRACING=0			--> PCAP file output (for protocol analyzers, i.e. Wireshark)
+    -ASCII_TRACING=0			--> Legacy ns-3 ASCII tracing (in this case, we will trace the frames captured at YansWifiPhy)
+    -ROUTING_TABLES=0			--> Decide if print (or not) the routing tables, inherent to the corresponding routing protocols
+    -VERBOSE=0				--> Prompt the information related to those classes named in WifiHelper::EnableLogComponents ()
+
+  [BEAR]
+    -COEF_FILE=coefsAR.cfg
+    -FILTER_ORDER=3
+    -COHERENCE_TIME=10000.0
+    -AR_FILTER_ENTRY_NOISE_POWER=0.005
+    -AR_FILTER_VARIANCE=2.6
+    -FF_VARIANCE=2.8
+    -SYMMETRY=1
+
+  [HMM]
+    -ERROR_UNIT=TIME / FRAMES	 				--> TIME (Time-based) or FRAMES (Frame-based)
+    -STATES=3/4/8/16						--> Number of states of the HMP (This option has not been implemented yet; by default, the number of states will be 4).
+    -DYNAMIC_AVERAGE_TIME=1					--> New analysis with a different sojourn time per state (depending on the harmful conditions of the particular state)
+    -OPERATION= FER / FILE / DISTANCE				--> FER (mapped from the FER above value, applied to the selected links from the channel configuration *-channel.conf file), File (Read 								    from this configuration file), Distance (according to the distance between nodes) 							 
+    -TRANSITION_MATRIX_FILE=HMM_4states/HMM_09_TR_1.txt		--> Transition matrix file name
+    -EMISSION_MATRIX_FILE=HMM_4states/HMM_09_EMIS_1.txt 	--> Emission matrix file name
+
+
+
+
+

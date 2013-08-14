@@ -1,0 +1,1 @@
+#define SCSI_DELAY 15000

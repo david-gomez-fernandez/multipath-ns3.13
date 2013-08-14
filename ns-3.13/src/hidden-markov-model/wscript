@@ -1,0 +1,32 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+def build(bld):
+    obj = bld.create_ns3_module('hidden-markov-model', ['core','wifi','network','internet','propagation'])
+    obj.source = [
+        'model/hidden-markov-model-entry.cc',
+        'model/hidden-markov-error-model.cc',      
+        'model/hidden-markov-propagation-loss-model.cc'      
+        ]
+
+    obj_test = bld.create_ns3_module_test_library('hidden-markov-model')
+    obj_test.source = [
+        ]
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'hidden-markov-model'
+    headers.source = [
+        'model/hidden-markov-model-entry.h',
+        'model/hidden-markov-error-model.h',            
+        'model/hidden-markov-propagation-loss-model.h'  
+        ]
+
+    #bld.ns3_python_bindings()
+
+#if bld.env['ENABLE_GSL']:
+#      obj.use.extend(['GSL', 'GSLCBLAS', 'M'])
+#      obj_test.use.extend(['GSL', 'GSLCBLAS', 'M'])
+
+#if (bld.env['ENABLE_EXAMPLES']):
+#     bld.add_subdirs('examples')
+
+#bld.ns3_python_bindings()

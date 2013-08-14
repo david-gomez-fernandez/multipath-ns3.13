@@ -1,0 +1,188 @@
+# vim: filetype=python :
+
+#  Network Simulation Cradle
+#  Copyright (C) 2003-2005 Sam Jansen
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but WITHOUT
+#  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+#  FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+#  more details.
+#
+#  You should have received a copy of the GNU General Public License along
+#  with this program; if not, write to the Free Software Foundation, Inc., 59
+#  Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# Doesn't work? Had problems using timestamp signatures. Might have sped things
+# up...
+#SourceSignatures('timestamp')
+
+
+Help("""
+     use 'scons libstackname.so' to built a specific stack.
+     use 'scons target=arch' to specify target architecture (either amd64 or x86).
+     Default target architecture is autodetect.
+     """)
+
+# We use newer SCons versions and naming, need at least 1.0 to build. Scons
+# 1.0.1 is included locally, just use "python scons.py".
+EnsureSConsVersion(1,0)
+
+def get_target_architecture(context):
+  import os
+  def get_elf_class(filename):
+    file = open(str(filename))
+    data = file.read(5)
+    file.close()
+    # Valid ELF header?
+    if data[0] == '\x7f' and data[1] == 'E' and data[2] == 'L' and data[3] == 'F':
+      if data[4] == '\x01':
+        return 'x86'
+      elif data[4] == '\x02':
+        return 'amd64'
+      raise TypeError, "Unknown ELF class"
+    else:
+      raise TypeError, "%s: not in ELF format" % filename
+
+  target = ARGUMENTS.get('target')
+  # allow user to override using scons target=(amd64|x86)
+  if target:
+    context.Result('Target set to %s on command line, check skipped' % target)
+    context.env['NSC_TARGET_ARCHITECTURE'] = target
+    return target
+  arch = os.uname()[4]
+  context.Message('Checking target architecure...')
+  if arch == 'i686' or arch == 'i586' or arch == 'i486' or arch == 'i386':
+    result = 'x86'
+  elif arch == 'x86_64':
+    source = 'int main(void)\n{return 0;}\n'
+    context.Message('amd64, checking userland ...')
+    result = context.TryCompile(source, '.c')
+    if not result:
+      return result
+    result = get_elf_class(context.lastTarget)
+  else:
+    raise OSError, ('Unsupported architecture, if you want to '
+                    'crosscompile, use \"scons target=x86\" (or amd64)')
+
+  context.Result(result)
+  context.env['NSC_TARGET_ARCHITECTURE'] = result
+  return result
+
+# -----------------------------------------------------------------------------
+def filter_globalised(target, source, env):
+  """Used by the globaliser builder to remove already globalised files.
+
+  This is required because the suffix for globalised files is still the same as
+  the original files (both have .c at the end). We use '.globalised.c' to
+  indicate files that have been globalised, so if the source has this string in
+  it, we return empty lists to inform SCons that there is no action to be
+  taken.
+  """
+  if len(source) > 1 or len(target) > 1:
+    return ([], [])
+  if str(source[0]).find('.globalised.') != -1:
+    return ([], [])
+  env.Depends(target, '#' + env['GLOBALISER'])
+  return (target, source)
+
+# -----------------------------------------------------------------------------
+# The globaliser action is configured as follows:
+#   single_source=True -- This means that if the action is given a list of
+#     source files, it will be invoked once for each source file
+#   emitter=filter_globalised -- This filtered out alread-globalised files. See
+#     the docstring of filter_globalised
+#   source_scanner=SourceFileScanner -- Use the default scanner to find
+#     dependencies of the source files. This means that the source list will go
+#     through the normal C dependency scanning.
+globaliser_action = '$CC $CCFLAGS $GLB_CCFLAGS $_CPPDEFFLAGS $_CPPINCFLAGS ' \
+    + ' -E $SOURCE -o - | $GLOBALISER $GLB_FLAGS $GLB_LIST >$TARGET'
+globaliser_builder = Builder(action=globaliser_action,
+                             src_suffix='.c',
+                             suffix='.globalised.c',
+                             single_source=True,
+                             emitter=filter_globalised,
+                             source_scanner=SourceFileScanner)
+
+# Source: stackoverflow.com/questions/377017
+def exe_exists(program):
+  import os
+  def is_exe(fpath):
+    return os.path.exists(fpath) and os.access(fpath, os.X_OK)
+
+  fpath, fname = os.path.split(program)
+  if fpath:
+    if is_exe(program):
+      return program
+  else:
+    for path in os.environ['PATH'].split(os.pathsep):
+      exe_file = os.path.join(path, program)
+      if is_exe(exe_file):
+        return exe_file
+
+  return None
+
+# -----------------------------------------------------------------------------
+# Site-local customisation: load a custom.py (if it exists), and allow
+# overriding the C and C++ compilers. This allows the user to e.g. specify a
+# cross-compiler to compile in 32-bit mode on a 64-bit machine.
+vars = Variables('custom.py')
+vars.AddVariables(
+    ('CC', 'The default C compiler used'),
+    ('CXX', 'The default C++ compiler user'),
+    ('LINKFLAGS', 'Extra arguments passed to the linker'),
+    )
+import os
+AddOption('--prefix',
+	  dest='prefix',
+          type='string',
+          nargs=1,
+          action='store',
+	  default=os.path.join(os.getcwd()),
+          metavar='DIR',
+          help='installation prefix')
+
+
+# -----------------------------------------------------------------------------
+# Run the configure tests and build the environment
+env = Environment(variables = vars, PREFIX = GetOption('prefix'))
+conf = Configure(env, custom_tests={
+      'get_target_architecture': get_target_architecture})
+if not conf.get_target_architecture():
+  Exit(1)
+if not conf.CheckLib('fl') or not exe_exists('flex'):
+  print 'Did not find libfl.a and/or flex. Please install flex and its development libraries.'
+  Exit(1)
+if not exe_exists('bison'):
+  print 'Did not find bison. Please install the bison parser generator.'
+  Exit(1)
+env = conf.Finish()
+
+# -----------------------------------------------------------------------------
+# 'default_env' is exported, it is expected that all SConscript files import
+# this environment and Clone it.
+default_env = env.Clone(GLOBALISER='globaliser/globaliser', GLB_FLAGS='')
+default_env.Append(BUILDERS={'Globaliser': globaliser_builder})
+Export('default_env')
+
+# -----------------------------------------------------------------------------
+# The list of SConscript files to read in.
+SConscript('globaliser/SConscript')
+
+SConscript('freebsd5/SConscript')
+SConscript('lwip-HEAD/src/SConscript')
+SConscript('openbsd3/SConscript')
+
+SConscript('linux-2.6/SConscript')
+SConscript("linux-2.6.18/SConscript")
+SConscript("linux-2.6.26/SConscript")
+
+SConscript('test/SConscript')
+
+for include in ['sim/sim_errno.h', 'sim/sim_interface.h']:
+  tmp = env.Install(dir = '$PREFIX/include', source = include)
+  env.Alias('install', tmp)

@@ -1,0 +1,99 @@
+Network Simulation Cradle
+
+ABOUT
+
+  See the README file for general information and documentation.
+
+  This INSTALL file is valid mostly for ns-2 operation. For ns-3, see the ns-3
+  documentation.
+
+PREREQUISITES
+
+  python. NSC uses scons for its build process, a local version of scons
+  is included with the nsc package.
+
+  To build all the stacks gcc version 3.3 and 3.4 will both be required. It is
+  likely the build system wont work properly for you when selecting one of
+  these, the way around this is to fix the SConscript file in question and
+  submit a patch. The Linux 2.6.18 and 2.6.26 stacks are known to work with
+  gcc 4.1.x.
+
+  At this time, only the x86 target is supported. The lwip stacks and
+  the Linux 2.6.18 and 2.6.26 stacks work on both x86 and x86-64.
+  The build system will try to determine the target architecture automatically.
+  If it should detect the wrong target (e.g. because you're using a cross-compiler)
+  you can set it like this: python scons.py target=TARGET where TARGET is either
+  'x86' or 'amd64'.
+
+  The normal build environment is on a Debian 3.1 machine. It has also been
+  tested on Gentoo and FreeBSD machines in the past. If you use another type
+  of *nix or another Linux distribution you're on your own.
+
+  Bison and flex are required to build the globaliser.
+
+  ns-2.28, ns-2.29 and ns-2.30 are supported. NSC isn't tightly tied in to the
+  ns2 releases, so this may work on other versions as well. It is not tested on
+  anything but ns-2.28, however.
+
+INSTALL
+
+  1. Move the nsc/ dir to inside the ns-2 directory. Assuming ns2 is installed
+     as ~/ns-2.28:
+     eg.
+
+        mv nsc/ ~/ns-2.28/
+
+  2. Build nsc.
+     eg.
+
+       cd ~/ns-2.28/nsc/
+       python scons.py
+
+     It is possible not all stacks will be built here. Individual stacks can be
+     built like so:
+     ie.
+
+       python scons.py libfreebsd5.so
+       python scons.py liblwip.so
+       python scons.py libopenbsd3.so
+       python scons.py linux-2.6.26
+       python scons.py linux-2.6.18
+
+    Alternatively, build with:
+
+      python scons.py -k
+
+    And scons will keep going after errors.
+
+    Hopefully at least one will build fine. Each stack corresponds to a
+    different class in your TCL script, so you do not need to build them all.
+    Note that building these may take a long time and require a lot of RAM.
+
+  3. Patch ns-2. This changes three things: adds the NSC TCP agent into the ns2
+     build and modifies tcl/lib/ns-agent.tcl and tcl/lib/ns-default.tcl.
+     For ns 2.28 and ns-2.29, use patch-nsc-ns2.28.txt. eg.
+
+       cd ~/ns-2.28/
+       patch -p0 <nsc/ns/patch-nsc-ns2.28.txt
+
+     For ns 2.30 use patch-nsc-ns2.30.txt.
+  
+  4. Reconfigure and build ns-2.
+     ie.
+      
+       ./configure
+       make
+
+  5. Set your LD_LIBRARY_PATH environment variable to include the nsc/ dir.
+     (You may also want to include this in your profile)
+     eg. for bash-like shells:
+
+       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/ns-2.28/nsc
+
+  6. Run an example simulation script to make sure everything is working.
+     eg.
+
+       ns nsc/ns/tcl/nsc/simple.tcl
+
+  7. You're done! See the README file for further information.
+

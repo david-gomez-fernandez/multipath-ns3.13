@@ -1,0 +1,25 @@
+# vim: syn=python
+# $Id$
+
+Import('default_env')
+Export('default_env')
+
+env = Environment()
+
+curdir = Dir('.').path + '/'
+
+bison = Builder(action='bison --defines=%s/parser.tab.hh $SOURCE -o $TARGET' % curdir)
+
+env.Append(BUILDERS={'Bison' : bison})
+
+source_files = ['lexer.lex.cc', 'parser.tab.cc', 'ilex.cc', 'handle_global.cc',
+    'node.cc']
+
+env.CFile(target = 'lexer.lex.cc', source = 'lexer.l')
+env.Bison([ 'parser.tab.cc', 'parser.tab.hh' ], 'parser.yc')
+env.Program("globaliser", source_files, 
+    LIBS = ['fl' ],
+    CCFLAGS = '-Wall -g -O'
+    )
+
+SConscript("test/SConscript")

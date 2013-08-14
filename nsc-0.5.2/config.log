@@ -1,0 +1,42 @@
+file /media/sda4/GIT/network-coding-ns-3-13/nsc-0.5.2/SConstruct,line 154:
+	Configure(confdir = .sconf_temp)
+scons: Configure: Checking target architecure...
+scons: Configure: (cached) amd64, checking userland ...
+scons: Configure: ".sconf_temp/conftest_0.c" is up to date.
+scons: Configure: The original builder output was:
+  |.sconf_temp/conftest_0.c <-
+  |  |int main(void)
+  |  |{return 0;}
+  |  |
+  |
+scons: Configure: ".sconf_temp/conftest_0.o" is up to date.
+scons: Configure: The original builder output was:
+  |gcc -o .sconf_temp/conftest_0.o -c .sconf_temp/conftest_0.c
+  |
+scons: Configure: (cached) amd64
+
+scons: Configure: Checking for C library fl... 
+scons: Configure: ".sconf_temp/conftest_1.c" is up to date.
+scons: Configure: The original builder output was:
+  |.sconf_temp/conftest_1.c <-
+  |  |
+  |  |
+  |  |
+  |  |int
+  |  |main() {
+  |  |  
+  |  |return 0;
+  |  |}
+  |  |
+  |
+scons: Configure: ".sconf_temp/conftest_1.o" is up to date.
+scons: Configure: The original builder output was:
+  |gcc -o .sconf_temp/conftest_1.o -c .sconf_temp/conftest_1.c
+  |
+scons: Configure: ".sconf_temp/conftest_1" is up to date.
+scons: Configure: The original builder output was:
+  |gcc -o .sconf_temp/conftest_1 .sconf_temp/conftest_1.o -lfl
+  |
+scons: Configure: (cached) yes
+
+

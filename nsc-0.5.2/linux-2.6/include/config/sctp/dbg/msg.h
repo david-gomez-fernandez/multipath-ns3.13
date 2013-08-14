@@ -1,0 +1,1 @@
+#undef CONFIG_SCTP_DBG_MSG

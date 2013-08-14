@@ -1,0 +1,1 @@
+#define	NEGA	0

@@ -1,0 +1,56 @@
+This folder will hold the scenario description and the link configuration files. In this Readme file we will show how to correctly define the scenario by means of the following statements:
+- We have a comment option, hence we have added some additional information which will be automatically discarded by the parser itself. By default, every line which starts with the "#" (hashtag) character.
+- The channel configuration files might be splitted into several files, thus representing such different channel conditions (i.e. normal configuration, error over side links....)
+
+--- Scenario description files (*-scenario.conf)
+  - The first field will be interpreted as the node number (actually, it is almost senseless, because the ns-3 will create nodes in order by itself; however, it eases the reading of the configuration file).
+  - The second, third and fourth ones will form a tuple which specifies the space coordinates of the ith node (i.e. [X, Y, Z]) in meters.
+  - The fifth (and next) elements in the file will have a key role, because it (they) will define the functionality of the node during the simulation. The next list showcases a node's behaviour mode: 
+    transmitter (TX), receiver (RX), coding router (CR) or intermediate router (FWD). It is worth highlighting that a node might have several functionalities (i.e. transmitter/receiver, forwarder/coding router)
+  - Finally, the last issue (only for a transmitter node) is that we *MUST* specify the destination for the traffic flow which will be created (either TCP or UDP), hence we can know the duple source-sink. 
+    In other words, if the node isn't a transmitter, the field "TX" will have a zero value in its respective column; otherwise, the value will represent the destination node to which the flow will be headed to. On the other hand, the RX flag will have this flag enabled (marked as '1') if the node is going to be the sink of a packet flow. Through this naive assignation, the node will have installed a ns-3's PacketSinkApplication, hence it will be waiting on a automatically-chosen port.
+
+--- Channel configuration files (*-channel.conf)
+  - The system will make use of the MatrixPropagationLossModel to model the link quality between two nodes. In addition, the file will basicly consist in an *NxN* matrix (being N the number of nodes deployed
+    over the scenario), representing the FER value [0,1] between two nodes. A "0" means that every packet will pass through the MatrixPropagationLossModel and a "1" just the opposite, that is to say that every 
+    frame will be corrupted. 
+  - A value of "5" means that we need an additional model to introduce a non-zero FER to the link (i.e. BEAR model, RateErrorModel, etc.)
+  
+--- Static routing description files (*-static-routing.conf)
+  - We will read the file which contains the static routing table of each node (obtained from the execution of a proactive routing protocol, i.e. OLSR, AODV), thus creating our own Ipv4StaticRoutingProtocol with the stuff we have just read.
+  - Each row will show the node in which the routing entry will be held; followed by the destination IP, the next hop and the interface from which the node should send the packet
+
+Example: Configuration of the X topology
+
+***************
+Butterfly-scenario.conf
+#No.	X	Y	Z	TX	RX	CR     FWD	     
+1	0	0	0	 6	 0 	 0	 1    	     
+2	0	50 	0	 5	 0	 0	 1	     
+3	50	25	0	 0	 0 	 0	 1           
+4	100	25	0	 0	 0	 1	 0           
+5	150	0	0	 0 	 1	 0	 1           
+6	150	50	0	 0	 1	 0	 1           
+
+***************
+Butterfly-channel.conf
+1	1	0	1	0	1     
+1	1	0	1	1	0     
+0	0	1	0	1	1     
+1	1	0	1	0	0     
+0	1	1	0	1	1     
+1	0	1	0	1	1     		
+
+***************
+Butterfly-static-routing.conf
+#Node ID	Destination	Nexthop		Interface	Metric
+0		1		2		1		0
+0		2		2		1		0
+0		3		2		1		0
+0		4		4		1		0
+0  		5		2		1		0
+.		.
+.				.
+.						.
+
+NOTE: Various flows delivered from the same source --> We are now able to send more than one flow from the same source node towards any destination. For that purpose, we can repeat as many rows as we want with the same node ID (it will be the source node), whilst we can (or not) change the destination ID.

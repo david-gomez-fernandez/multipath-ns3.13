@@ -1,0 +1,102 @@
+Network Simulation Cradle
+
+VERSION
+
+  0.5.2
+  12 August 2010
+
+ABOUT
+
+  The Network Simulation Cradle (NSC) allows real world TCP/IP stacks to be
+  used in a simulation environment. It has been primarily used with the network
+  simulator ns-2, but is designed to simulator independant.
+
+  More information can be found about NSC at the authors webpage:
+
+    http://www.wand.net.nz/~stj2/nsc/
+
+  If you use this software in any research, please cite this work.
+  Use the following publication:
+
+    http://www.wand.net.nz/pubDetail.php?id=215
+
+  Documentation is still pretty lacking at the moment. Email me if you have
+  questions and I'll try and add the answers to the documentation in later
+  releases.
+
+SIMULATOR SUPPORT
+
+  The NSC supports any simulator that implements the interface in
+  sim/sim_interface.h. An ns-2 implementation is shipped with this code and
+  ns-3 support is included in the ns-3 project.
+
+  Most of this file is dedicated to ns-2 specific features/limitations.
+
+CONFIGURATION OPTIONS AND COMMANDS FOR NS-2
+
+  The NSC TCP agents have a few commands to allow them to be configured. There
+  is one option that should be set before the agents are created, like so:
+
+    Agent/TCP/NSC set autoConf_ 0
+
+  autoConf_ sets whether NSC TCP agents will have their window set 
+  automatically to the window_ variable of Agent/TCP. If you leave autoConf_
+  enabled and set window_, the NSC implementations will attempt to set the
+  correct window size when created.
+
+    Agent/TCP set window_ 50
+
+  MTU size is derived from the packetSize_ variable, so:
+
+    Agent/TCP/NSC set packetSize_ 1500
+
+  Will set NSC TCP implementations to have an MTU of 1500 (and hence an MSS of
+  1460 or 1448 or similar).
+
+  Once created there are various commands that may be performed on the TCP
+  agents such as 'sysctl'. Eg.
+
+    set stack [new Agent/TCP/NSC/Linux26]
+    $stack sysctl net.ipv4.tcp_westwood 1
+
+  Other options can be found by poking around in the source. The above are the
+  usual commands and the ones which are well tested.
+
+KNOWN BUGS AND LIMITATIONS
+
+  The stacks are fairly recent, but not the most recent version available.
+  Updating is not a difficult task, but requires a bit of testing afterwards to
+  make sure nothing is broken. I haven't got around to this for some time
+  because I haven't found any great reason to upgrade often. All stacks will be
+  updated in the future, but I can't vouch for exactly when.
+
+  There are a few "fudges" in the code to make things somewhat compatible with
+  the existing ns-2 TCP models. For example, if you enable tracing ($ns
+  trace-all) then the sequence numbers output to the trace for NSC agents will
+  be fudged to something reasonable. In many situations they probably shouldn't
+  be trusted. The problem here is that a) ns-2 one-way TCP models are one way
+  and b) ns-2 one-way TCP models measure sequence numbers in segments, not
+  bytes.
+
+  There are probably a host of other things that should be here. I've forgotten
+  what they all are.
+
+USAGE
+
+  See the INSTALL file to get it up and running.
+
+  See the example scripts in ns/tcl/nsc/ for information on how to use the NSC
+  TCP implementations. In general they are a drop in replacement for the TCP
+  models in ns2.
+
+AUTHORS
+
+  Sam Jansen
+  sam@wand.net.nz
+  WAND Network Research Group
+  Department of Computer Science, University of Waikato, Hamilton, New Zealand
+
+CONTRIBUTORS
+
+  Florian Westphal - ns-3 support, Linux 2.6.26, lots of other work
+  Various others - email me if you want your name here!

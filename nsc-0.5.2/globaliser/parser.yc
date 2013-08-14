@@ -1,0 +1,1699 @@
+/*
+    globaliser -- programmatically replace globals in C source code
+    Copyright (C) 2003-2006 Sam Jansen
+
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the Free
+    Software Foundation; either version 2 of the License, or (at your option)
+    any later version.
+
+    This program is distributed in the hope that it will be useful, but WITHOUT
+    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+    FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+    more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc., 59
+    Temple Place, Suite 330, Boston, MA 02111-1307 USA
+*/
+
+/* $Id$ 
+
+   C grammar originally based on the forms available throughout the web, these
+   seem to have been derived from the grammar in the ISO standards. One place
+   to find information on this is:
+   
+        http://www.lysator.liu.se/c/ANSI-C-grammar-y.html
+
+   The grammar here has been updated a lot over time. It now (mostly?) supports
+   C99. It is also augmented so it work correctly with the output from gcc's
+   preprocessor.
+*/
+
+%{
+#include <stdio.h>
+#include <string>
+#include <sstream>
+#include <list>
+#include <algorithm>
+#include <assert.h>
+#include "../sim/num_stacks.h"
+using namespace std;
+
+#define YYERROR_VERBOSE
+#define YYSTYPE struct node_t *
+#define YYMAXDEPTH 1000000
+#define YYINITDEPTH 10000
+
+// Debugging: 
+//#define YYDEBUG 1
+
+#include "handle_global.h"
+
+extern int lineno;
+extern int yylex();
+extern string ws_text;
+extern string token_text;
+extern string attr_text;
+extern string lex_text;
+void setup_globals(const char *);
+
+static void yyerror(const char *s);
+
+#include "node.h"
+
+%}
+
+%token IDENTIFIER TYPEDEF_NAME INTEGER FLOATING CHARACTER STRING WS
+
+%token ELLIPSIS ADDEQ SUBEQ MULEQ DIVEQ MODEQ XOREQ ANDEQ OREQ SL SR
+%token SLEQ SREQ EQ NOTEQ LTEQ GTEQ ANDAND OROR PLUSPLUS MINUSMINUS ARROW
+
+%token AUTO BREAK CASE CHAR CONST CONTINUE DEFAULT DO DOUBLE ELSE ENUM
+%token EXTERN FLOAT FOR GOTO IF INT LONG REGISTER RETURN SHORT SIGNED SIZEOF
+%token STATIC STRUCT SWITCH TYPEDEF UNION UNSIGNED VOID VOLATILE WHILE
+
+%token ATTRIBUTE TYPEOF ALIGNOF ASM GCC_BUILTIN_TYPES_COMPATIBLE OFFSETOF
+
+%start start_c
+
+/* Expect the dangling-else shift-reduce conflict */
+//%expect 1
+
+
+%%
+
+/* B.2.1 Expressions. */
+
+primary_expression:
+    identifier                                    
+    | left_bracket_t left_brace_t statement_list right_brace_t right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5); 
+    }
+    | integer_t
+    | character_t
+    | floating_t
+    | strings
+    | left_bracket_t expression right_bracket_t { $$ = new node_t($1, $2, $3); }
+    | alignof_t left_bracket_t type_name right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    | alignof_t left_bracket_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    | offsetof_t left_bracket_t type_name comma_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6);
+    } 
+    ;
+
+identifier:
+    identifier_t
+    ;
+
+/* Added to allow :  "sam" " is cool" (string concatenation) */
+strings:
+    string_t                                    { $$->type = node_t::t_string; }
+    | strings string_t                          
+    { 
+        $$ = new node_t($1, $2); 
+        $$->type = node_t::t_string_list;
+    }
+    ;
+
+postfix_expression:
+    primary_expression
+    | postfix_expression left_square_t expression right_square_t
+    {    
+        $$ = new node_t($1, $2, $3, $4); 
+    }
+    | postfix_expression left_bracket_t argument_expression_list right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+
+        /* Ignore the identifier part of a function call, but only if there is
+         * a simple function name there. The grammar also allows a complex
+         * expression here, e.g., a function call returning a function pointer.
+         * In such a case we wouldn't want to do anything. 
+         *
+         * The above isn't the full story. We only want to ignore this
+         * identifier if we know it to be a function symbol. The reason is that
+         * the identifier could be a function pointer, which possibly needs
+         * globalising.
+         *
+         * Still, this isn't 100% correct. If a static local variable shadowed
+         * the name of a function here, this could wouldn't know and it would
+         * ignore the static variable. This decision should really be delayed
+         * until analysis in node_t; as that is our real semantic analysis
+         * stage. At the time of writing this has proved to be sufficient, but
+         * this should be fixed in the future.
+         *
+         * TODO: check that we still need this code. The semantic analysis has
+         * improved a lot in node_t; it may be that we no longer need this
+         * check.
+         */
+        if ($1->children.empty()) {
+            if (is_function($1->s_identifier)) {
+                $1->b_ignore = true;
+            }
+        }
+    }
+    | postfix_expression left_bracket_t right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3); 
+        if ($1->children.empty()) {
+            if (is_function($1->s_identifier)) {
+                $1->b_ignore = true;
+            }
+        }
+    }
+    | postfix_expression period_t identifier    
+    { 
+        $$ = new node_t($1, $2, $3); $3->s_identifier = string(""); 
+    }
+    | postfix_expression period_t typedef_name_t    
+    { 
+        $$ = new node_t($1, $2, $3); $3->s_identifier = string(""); 
+    }
+    | postfix_expression arrow_t identifier        
+    { 
+        $$ = new node_t($1, $2, $3); $3->s_identifier = string(""); 
+    }
+    | postfix_expression arrow_t typedef_name_t 
+    { 
+        $$ = new node_t($1, $2, $3); $3->s_identifier = string(""); 
+    }
+    | postfix_expression plusplus_t                
+    { 
+        $$ = new node_t($1, $2); 
+    }
+    | postfix_expression minusminus_t            
+    { 
+        $$ = new node_t($1, $2); 
+    }
+    ;
+
+argument_expression_list:
+    assignment_expression                        
+    | argument_expression_list comma_t assignment_expression
+    {    
+        $$ = new node_t($1, $2, $3);
+    }
+    ;
+
+unary_expression:
+    postfix_expression
+    | plusplus_t unary_expression               { $$ = new node_t($1, $2); }
+    | minusminus_t unary_expression             { $$ = new node_t($1, $2); }
+    | unary_operator cast_expression            
+    {
+        $$ = new node_t($1, $2); 
+        $$->check_for_ampersand_reference_special_case();
+    }
+    | sizeof_t unary_expression                 { $$ = new node_t($1, $2); }
+    | sizeof_t left_bracket_t type_name right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+    }
+    /* Special to allow __builtin_types_compatible_p, which is a builtin function
+       that takes 2 types as arguments */
+    | gcc_builtin_types_compat_t left_bracket_t type_name comma_t type_name right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6);
+    }
+    ;
+
+unary_operator:
+    ampersand_t
+    | asterisk_t
+    | plus_t
+    | minus_t
+    | tilde_t
+    | exclamation_t
+    ;
+
+cast_expression:
+    unary_expression
+    | left_bracket_t type_name right_bracket_t cast_expression
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+    }
+    | left_bracket_t type_name right_bracket_t typedef_name_t 
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+    }
+    | left_bracket_t type_name right_bracket_t
+    left_brace_t initializer_list right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6);
+    }
+    | left_bracket_t type_name right_bracket_t
+    left_brace_t initializer_list comma_t right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);
+    }
+    | left_bracket_t type_name right_bracket_t
+    left_brace_t right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5);
+    }
+    ;
+
+multiplicative_expression:
+    cast_expression
+    | multiplicative_expression asterisk_t cast_expression
+    {    
+        $$ = new node_t($1, $2, $3);    
+    }
+    | multiplicative_expression divide_t cast_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | multiplicative_expression percent_t cast_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+additive_expression:
+    multiplicative_expression
+    | additive_expression plus_t multiplicative_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | additive_expression minus_t multiplicative_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+shift_expression:
+    additive_expression
+    | shift_expression sl_t additive_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | shift_expression sr_t additive_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+relational_expression:
+    shift_expression
+    | relational_expression less_than_t shift_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | relational_expression greater_than_t shift_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | relational_expression lteq_t shift_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | relational_expression gteq_t shift_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+equality_expression:
+    relational_expression
+    | equality_expression eq_t relational_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    | equality_expression noteq_t relational_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+and_expression:
+    equality_expression
+    | and_expression ampersand_t equality_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+exclusive_or_expression:
+    and_expression
+    | exclusive_or_expression hat_t and_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+inclusive_or_expression:
+    exclusive_or_expression
+    | inclusive_or_expression or_t exclusive_or_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+logical_and_expression:
+    inclusive_or_expression
+    | logical_and_expression andand_t inclusive_or_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+logical_or_expression:
+    logical_and_expression
+    | logical_or_expression oror_t logical_and_expression
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+
+conditional_expression:
+    logical_or_expression
+    | logical_or_expression question_t expression colon_t conditional_expression
+    {    $$ = new node_t($1, $2, $3, $4, $5);    }
+    | logical_or_expression question_t colon_t conditional_expression
+    {
+        /* This is crazy syntax right here! But gcc accepts it... */
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    ;
+
+assignment_expression:
+    conditional_expression
+    | cast_expression assignment_operator assignment_expression
+    {    
+        $$ = new node_t($1, $2, $3);    
+    }
+    ;
+
+assignment_operator:
+    equals_t
+    | muleq_t
+    | diveq_t
+    | modeq_t
+    | addeq_t
+    | subeq_t
+    | sleq_t
+    | sreq_t
+    | andeq_t
+    | xoreq_t
+    | oreq_t
+    ;
+
+expression:
+    assignment_expression
+    | expression comma_t assignment_expression    
+    { 
+        $$ = new node_t($1, $2, $3); 
+    }
+    ;
+
+constant_expression:
+    conditional_expression
+    ;
+
+old_function_declaration:
+    declaration_specifiers_noattr init_declarator_list semicolon_t
+    {
+        $$ = new node_t($1, $2, $3);
+        $$->type = node_t::t_declaration;
+    }
+    | declaration_specifiers_noattr semicolon_t
+    {
+        $$ = new node_t($1, $2);
+        $$->b_ignore = true;
+    }
+    ;
+
+declaration:
+    declaration_specifiers init_declarator_list semicolon_t
+    {
+        $$ = new node_t($1, $2, $3);
+
+        if($1->check_typedef()) {
+            // If it is a typedef there should only be one interesting 
+            // identifier in init_declarator_list.
+            const node_t *i = $2->get_identifier();
+            assert(i);
+            string new_type_name = i->s_identifier;
+            string old_type_name = $$->find_typedef_type();
+            bool is_function = $$->get_function_declaration_b();
+            global_define_type(new_type_name, old_type_name,
+                               is_function);
+ 
+            // TODO: enforce only one of the following bools with a checl
+            // bool fd = $$->get_function_declaration_b();
+            // bool fp = $$->get_function_pointer();
+        } else {
+            /* This is the node for a... declaration. These are the
+             * sub trees we are interested in. Mark it as such. */
+            $$->type = node_t::t_declaration;
+            $$->do_void_declaration_special_case();
+            if($$->get_extern() && !$$->b_ignore && 
+                    !$$->b_function_declaration) {
+                // Generally we handle declarations at a higher level, but to
+                // handle externs within blocks of code, we need to handle
+                // the declaration here.
+                $$->handle_global();
+                $$->b_ignore = true; // Don't try and handle it again later.
+            }
+        }
+    }
+    | declaration_specifiers semicolon_t
+    { 
+        $$ = new node_t($1, $2);
+        $$->b_ignore = true;
+    }
+    ;
+
+declaration_specifiers_noattr:
+    storage_class_specifier_noattr declaration_specifiers        
+    { $$ = new node_t($1, $2); }
+    | storage_class_specifier_noattr
+    | type_specifier declaration_specifiers     { $$ = new node_t($1, $2); }
+    | type_specifier
+    | type_qualifier declaration_specifiers     { $$ = new node_t($1, $2); }
+    | type_qualifier
+    ;
+
+declaration_specifiers:
+    storage_class_specifier declaration_specifiers        
+    { 
+        $$ = new node_t($1, $2); 
+    }
+    | storage_class_specifier
+    | type_specifier declaration_specifiers     { $$ = new node_t($1, $2); }
+    | type_specifier
+    | type_qualifier declaration_specifiers     { $$ = new node_t($1, $2); }
+    | type_qualifier
+    ;
+
+init_declarator_list:
+    init_declarator
+    | init_declarator_list comma_t init_declarator        
+    { 
+        $$ = new node_t($1, $2, $3);
+        $$->type = node_t::t_init_declarator_list;
+    }
+    ;
+
+init_declarator:
+    declarator equals_t initializer
+    {
+        $$ = new node_t($1, $2, $3);
+        $$->b_init_declarator = true;
+        $$->type = node_t::t_init_declarator;
+    }
+    | declarator
+    ;
+
+storage_class_specifier:
+    typedef_t
+    {
+        $$ = $1;
+        $$->b_typedef = true;
+    }
+    | extern_t                                    
+    { 
+        $$ = $1; 
+        $$->b_extern = true;
+    }
+    | static_t                                    
+    { 
+        $$ = $1; 
+        $$->b_static = true;
+    }
+    | auto_t                                    
+    ;
+
+storage_class_specifier_noattr:
+    typedef_t
+    {
+        $$ = $1;
+        $$->b_typedef = true;
+    }
+    | extern_t                                    
+    { 
+        $$ = $1; 
+        $$->b_extern = true;
+    }
+    | static_t                                    
+    { 
+        $$ = $1; 
+        $$->b_static = true;
+    }
+    | auto_t                                    
+    ;
+
+type_specifier:
+    void_t                                      { $$ = $1; }
+    | char_t                                    { $$ = $1; }
+    | short_t                                   { $$ = $1; }
+    | int_t                                     { $$ = $1; }
+    | long_t                                    { $$ = $1; }
+    | float_t                                   { $$ = $1; }
+    | double_t                                  { $$ = $1; }
+    | signed_t                                  { $$ = $1; }
+    | unsigned_t                                { $$ = $1; }
+    | struct_or_union_specifier                 { $$ = $1; }
+    | enum_specifier                            { $$ = $1; }
+    | typedef_name_t                            
+    { 
+        $$ = $1;
+        $$->b_typedefed_name = true;
+    }
+    | typeof_t left_bracket_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+        $$->type = node_t::t_typeof;
+    }
+    | typeof_t left_bracket_t type_name right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+        $$->type = node_t::t_typeof;
+    }
+    ;
+
+final_type_specifier:
+    struct_or_union_specifier
+    | enum_specifier
+    | typedef_name_t
+    {
+        $$ = $1;
+        $$->b_typedefed_name = true;
+    }
+    ;
+
+type_modifier_specifier:
+    void_t                                      { $$ = $1; }
+    | char_t                                    { $$ = $1; }
+    | short_t                                   { $$ = $1; }
+    | int_t                                     { $$ = $1; }
+    | long_t                                    { $$ = $1; }
+    | float_t                                   { $$ = $1; }
+    | double_t                                  { $$ = $1; }
+    | signed_t                                  { $$ = $1; }
+    | unsigned_t                                { $$ = $1; }
+    | typeof_t left_bracket_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    | typeof_t left_bracket_t type_name right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    ;
+    
+
+/* 
+ * We could consider doing a reduce() on struct declarations. Because we don't
+ * want to do any further processing on structs; this sould like the right
+ * thing to do here.
+ */
+struct_or_union_specifier:
+    struct_or_union identifier left_brace_t struct_declaration_list 
+    right_brace_t
+    {    
+        global_define_struct($2->s_identifier);
+
+        $$ = new node_t($1, $2, $3, $4, $5);    
+        $$->s_struct = $2->s_identifier;
+        $2->s_identifier = string(""); // see below for reason
+
+        // We don't want to consider function declarations within a
+        // structure
+        $4->clear_function_declaration();
+        $4->clear_typedefed();
+    }
+    | struct_or_union left_brace_t struct_declaration_list right_brace_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+        $3->clear_function_declaration();
+        $3->clear_typedefed();
+    }
+    /* allow empty struct definitions */
+    | struct_or_union left_brace_t right_brace_t
+    {
+            $$ = new node_t($1, $2, $3);
+    }
+    | struct_or_union identifier left_brace_t right_brace_t
+    {  
+        global_define_struct($2->s_identifier);
+        $$ = new node_t($1, $2, $3, $4);  
+        $$->s_struct = $2->s_identifier;
+        $2->s_identifier = string("");
+    }
+    | struct_or_union identifier                
+    { 
+        global_declare_struct($2->s_identifier);
+        // We don't want to know about the identifier here, it is just
+        // part of the type name.
+        $$ = new node_t($1, $2); 
+        $$->s_struct = $2->s_identifier;
+        $2->s_identifier = string("");
+    }
+    /* allow a typedef'd name here (ick) */
+    | struct_or_union typedef_name_t            
+    { 
+        global_declare_struct($2->s_identifier);
+        $$ = new node_t($1, $2); 
+        $$->s_struct = $2->s_identifier;
+        $2->s_identifier = string("");
+        $2->b_typedefed_name = false;
+    }
+    | struct_or_union typedef_name_t left_brace_t struct_declaration_list 
+    right_brace_t
+    {
+        global_define_struct($2->s_identifier);
+        $$ = new node_t($1, $2, $3, $4, $5);
+        $$->s_struct = $2->s_identifier;
+        $2->b_typedefed_name = false;
+        $4->clear_function_declaration();
+        $4->clear_typedefed();
+    }
+    ;
+
+specifier_qualifier_list:
+    type_specifier specifier_qualifier_list     { $$ = new node_t($1, $2); }
+    | type_specifier
+    | type_qualifier specifier_qualifier_list   { $$ = new node_t($1, $2); }
+    | type_qualifier
+    ;
+
+struct_or_union:
+    struct_t
+    | union_t
+    ;
+
+struct_declaration_list:
+    struct_declaration
+    | struct_declaration_list struct_declaration
+    {    
+        $$ = new node_t($1, $2);    
+    }
+    ;
+
+
+struct_declaration:
+    struct_specifier_qualifier_list struct_declarator_list semicolon_t
+    {    
+        $$ = new node_t($1, $2, $3);    
+    }
+    | struct_specifier_qualifier_list semicolon_t
+    {
+	$$ = new node_t($1, $2);
+    }
+    | semicolon_t
+    ;
+
+struct_specifier_qualifier_list:
+    tqm final_type_specifier tqm
+    {
+        if($1 && $3)
+            $$ = new node_t($1, $2, $3);
+        else if($1)
+            $$ = new node_t($1, $2);
+        else if($3)
+            $$ = new node_t($2, $3);
+        else
+            $$ = new node_t($2);
+    }
+    | tqm type_modifier_specifier tms_end 
+    {
+        if($1 && $3)
+            $$ = new node_t($1, $2, $3);
+        else if($1)
+            $$ = new node_t($1, $2);
+        else if($3)
+            $$ = new node_t($2, $3);
+        else
+            $$ = new node_t($2);
+    }
+    ;
+
+tqm: /* epsilon */
+    {
+        $$ = NULL;
+    }
+    | type_qualifier tqm
+    {
+        if($2) {
+            $$ = new node_t($1, $2);
+        } else {
+            $$ = $1;
+        }
+    }
+    ;
+
+tms_end: /* epsilon */
+    {
+        $$ = NULL;
+    }
+    | type_qualifier tms_end
+    {
+        if($2)
+            $$ = new node_t($1, $2);
+        else
+            $$ = new node_t($1);
+    }
+    | type_modifier_specifier tms_end
+    {
+        if($2)
+            $$ = new node_t($1, $2);
+        else
+            $$ = new node_t($1);
+    }
+    ;
+
+
+struct_declarator_list:
+    struct_declarator                         
+    | struct_declarator_list comma_t struct_declarator
+    {    $$ = new node_t($1, $2, $3);    }
+    ;
+
+struct_declarator:
+    s_declarator
+    | colon_t constant_expression                
+    { $$ = new node_t($1, $2);    }
+    | s_declarator colon_t constant_expression    
+    { $$ = new node_t($1, $2, $3); }
+    ;
+
+enum_specifier:
+    enum_t identifier left_brace_t enumerator_list right_brace_t
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5);    
+        $2->s_identifier = string();
+    }
+    | enum_t left_brace_t enumerator_list right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4);    
+    }
+    | enum_t identifier left_brace_t enumerator_list comma_t right_brace_t
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6);
+        $2->s_identifier = string();
+    }
+    | enum_t left_brace_t enumerator_list comma_t right_brace_t
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5);    
+    }
+    | enum_t identifier                            
+    {
+        $$ = new node_t($1, $2); 
+        $2->s_identifier = string();
+    }
+    ;
+
+enumerator_list:
+    enumerator
+    | enumerator_list comma_t enumerator        { $$ = new node_t($1, $2, $3); }
+    ;
+
+enumerator:
+    identifier
+    {
+        global_define_variable($1->s_identifier, false, true, false, false, "");
+        $1->s_identifier = string();
+    }
+    | identifier equals_t constant_expression    
+    {
+        $$ = new node_t($1, $2, $3); 
+        global_define_variable($1->s_identifier, false, true, false, false, "");
+        $1->s_identifier = string();
+    }
+    ;
+
+type_qualifier:
+    const_t
+    | volatile_t                                
+    { 
+        $$ = $1; 
+        $$->b_volatile = true;
+    }
+    | register_t                                    
+    { 
+        $$ = $1; 
+        $$->b_register = true;
+    }
+    ;
+
+declarator:
+    pointer direct_declarator
+    { 
+        $$ = new node_t($1, $2); 
+        $$->i_function_pointer = 1;
+        $$->type = node_t::t_declarator;
+    }
+    | direct_declarator
+    ;
+
+s_declarator:
+    pointer s_direct_declarator
+    {
+        $$ = new node_t($1, $2);
+        $$->i_function_pointer = 1;
+        $$->type = node_t::t_declarator;
+    }
+    |
+    s_direct_declarator
+    ;
+
+direct_declarator:
+    identifier
+    {
+        $$ = $1;
+        $$->type = node_t::t_direct_declarator;
+    }
+    | left_bracket_t declarator right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3);
+        $$->i_function_pointer = $2->i_function_pointer + 1;
+    }
+    | direct_declarator left_square_t constant_expression right_square_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);
+        $$->type = node_t::t_direct_declarator_array;
+        $$->b_unbounded_array = true; // For now. Need to think about
+                                      // this.
+    }
+    | direct_declarator left_square_t right_square_t
+    {    
+        $$ = new node_t($1, $2, $3);
+        $$->type = node_t::t_direct_declarator_array;
+        $$->b_unbounded_array = true;
+    }
+        // function declarations:
+    | direct_declarator left_bracket_t parameter_type_list right_bracket_t
+    {   
+        $$ = new node_t($1, $2, $3, $4);    
+        if($1->i_function_pointer == 2) {
+            // We are a function pointer!
+            $$->i_function_pointer = 3;
+        } else {        
+            $$->type = node_t::t_function_declaration;
+            $$->b_function_declaration = true;
+        }
+        $3->b_declaration_list = true;
+    }
+    | direct_declarator left_bracket_t identifier_list right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+        $$->type = node_t::t_function_declaration;
+        $$->b_function_declaration = true;
+        $3->b_declaration_list = true;
+    }
+    | direct_declarator left_bracket_t right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3);    
+        
+        if($1->i_function_pointer == 2) {
+            // We are a function pointer!
+            $$->i_function_pointer = 3;
+        } else {        
+            $$->type = node_t::t_function_declaration;
+            $$->b_function_declaration = true;
+        }
+
+        //$$->b_ignore = true;
+    }
+    | direct_declarator type_extension
+    {
+        $$ = new node_t($1, $2);
+    }
+    ;
+
+ /* Note that we could handle attributes here as well. Attributes are annoying,
+  * though, because they can come before OR after the identifier. This case
+  * only handles *after* the identifier. For now we only support a very simple
+  * 'asm' command, because that is the only case of this syntax we have come
+  * across. */
+type_extension:
+    asm_t left_bracket_t strings right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    ;
+
+s_direct_declarator:
+    identifier
+    {
+        $$ = $1;
+        $$->type = node_t::t_direct_declarator;
+    }
+    | typedef_name_t
+    {
+        $$ = $1;
+        $$->s_identifier = $$->s_token;
+        $$->b_typedefed_name = true;
+        $$->type = node_t::t_direct_declarator;
+    }
+    | left_bracket_t s_declarator right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3);
+        $$->i_function_pointer = $2->i_function_pointer + 1;
+    }
+    | s_direct_declarator left_square_t constant_expression right_square_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);
+        $$->type = node_t::t_direct_declarator_array;
+        $$->b_unbounded_array = true; // For now. Need to think about
+                                      // this.
+    }
+    | s_direct_declarator left_square_t right_square_t
+    {    
+        $$ = new node_t($1, $2, $3);
+        $$->type = node_t::t_direct_declarator_array;
+        $$->b_unbounded_array = true;
+    }
+        // function declarations:
+    | s_direct_declarator left_bracket_t parameter_type_list right_bracket_t
+    {   
+        $$ = new node_t($1, $2, $3, $4);    
+        if($1->i_function_pointer == 2) {
+            // We are a function pointer!
+            $$->i_function_pointer = 3;
+        } else {        
+            $$->type = node_t::t_function_declaration;
+            $$->b_function_declaration = true;
+        }
+        $3->b_declaration_list = true;
+    }
+    | s_direct_declarator left_bracket_t identifier_list right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+        $$->type = node_t::t_function_declaration;
+        $$->b_function_declaration = true;
+        $3->b_declaration_list = true;
+    }
+    | s_direct_declarator left_bracket_t right_bracket_t
+    {    
+        $$ = new node_t($1, $2, $3);    
+        
+        if($1->i_function_pointer == 2) {
+            // We are a function pointer!
+            $$->i_function_pointer = 3;
+        } else {        
+            $$->type = node_t::t_function_declaration;
+            $$->b_function_declaration = true;
+        }
+
+        $$->b_ignore = true;
+    }
+    ;
+
+pointer:
+    asterisk_t type_qualifier_list              { $$ = new node_t($1, $2); }
+    | asterisk_t
+    | asterisk_t type_qualifier_list pointer    { $$ = new node_t($1, $2, $3); }
+    | asterisk_t pointer                        { $$ = new node_t($1, $2); }
+    ;
+
+type_qualifier_list:
+    type_qualifier
+    | type_qualifier_list type_qualifier        { $$ = new node_t($1, $2); }
+    ;
+
+parameter_type_list:
+    parameter_list                              
+    { 
+        $$ = $1; 
+        $$->type = node_t::t_parameter_type_list;
+    }
+    | parameter_list comma_t ellipsis_t         
+    { 
+        $$ = new node_t($1, $2, $3); 
+        $$->type = node_t::t_parameter_type_list;
+    }
+    ;
+
+parameter_list:
+    parameter_declaration
+    | parameter_list comma_t parameter_declaration
+    {    
+        $$ = new node_t($1, $2, $3);    
+    }
+    ;
+
+parameter_declaration:
+    // *
+	// This doesn't quite work. It doesn't match storage_class_specifiers in
+	// declaration_specifiers, for one, and has a shift/reduce conflict as
+	// well. I wonder if this is the correct approach to take, it feels right,
+	// but maybe it is something else...
+	struct_specifier_qualifier_list struct_declarator
+    {
+        $$ = new node_t($1, $2);
+    }
+    | struct_specifier_qualifier_list param_abstract_declarator
+    {
+        $$ = new node_t($1, $2);
+    }
+    | struct_specifier_qualifier_list
+    ;// */
+    /*
+    declaration_specifiers declarator           { $$ = new node_t($1, $2); }
+    | declaration_specifiers abstract_declarator
+    {    $$ = new node_t($1, $2);    }
+    | declaration_specifiers                    { $$ = $1; }
+    
+	;*/
+// struct_specifier_qualifier_list struct_declaration
+
+identifier_list:
+    identifier                                  
+    { 
+        $$ = $1; 
+        $$->b_ignore = true; 
+    }
+    | identifier_list comma_t identifier        
+    { 
+        $$ = new node_t($1, $2, $3); 
+        $$->b_ignore = true;
+    }
+    ;
+
+type_name:
+    specifier_qualifier_list
+    | specifier_qualifier_list abstract_declarator
+    {    $$ = new node_t($1, $2);    }
+    ;
+
+abstract_declarator:
+    pointer
+    | direct_abstract_declarator
+    | pointer direct_abstract_declarator        { $$ = new node_t($1, $2); }
+    ;
+
+direct_abstract_declarator:
+    left_bracket_t abstract_declarator right_bracket_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | left_square_t right_square_t
+    {    $$ = new node_t($1, $2);    }
+    | left_square_t constant_expression right_square_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | direct_abstract_declarator left_square_t right_square_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | direct_abstract_declarator left_square_t constant_expression right_square_t
+    {    $$ = new node_t($1, $2, $3, $4);    }
+    | left_bracket_t right_bracket_t
+    {    $$ = new node_t($1, $2);    }
+    | left_bracket_t parameter_type_list right_bracket_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | direct_abstract_declarator left_bracket_t right_bracket_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | direct_abstract_declarator left_bracket_t parameter_type_list right_bracket_t
+    {    $$ = new node_t($1, $2, $3, $4);    }
+    ;
+
+param_abstract_declarator:
+    pointer
+    | param_direct_abstract_declarator
+    | pointer param_direct_abstract_declarator  { $$ = new node_t($1, $2); }
+    ;
+
+param_direct_abstract_declarator:
+    left_bracket_t param_abstract_declarator right_bracket_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | left_square_t right_square_t
+    {    $$ = new node_t($1, $2);    }
+    | left_square_t constant_expression right_square_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | param_direct_abstract_declarator left_square_t right_square_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | param_direct_abstract_declarator left_square_t constant_expression right_square_t
+    {    $$ = new node_t($1, $2, $3, $4);    }
+    | left_bracket_t right_bracket_t
+    {    $$ = new node_t($1, $2);    }
+    | param_direct_abstract_declarator left_bracket_t right_bracket_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | param_direct_abstract_declarator left_bracket_t parameter_type_list right_bracket_t
+    {    $$ = new node_t($1, $2, $3, $4);    }
+    ;
+
+
+initializer:
+    assignment_expression
+    | left_brace_t initializer_list right_brace_t
+    {    $$ = new node_t($1, $2, $3);    }
+    | left_brace_t initializer_list comma_t right_brace_t
+    {    $$ = new node_t($1, $2, $3, $4);    }
+    | left_brace_t right_brace_t
+    {   $$ = new node_t($1, $2);   }
+        /* edit: strange C syntax */
+    | struct_period_initializer equals_t initializer
+    {
+        $$ = new node_t($1, $2, $3);
+    }
+    | identifier colon_t initializer
+    {
+        $$ = new node_t($1, $2, $3);
+    }
+    | typedef_name_t colon_t initializer
+    {
+        $$ = new node_t($1, $2, $3);
+    }
+    /* New syntax that allows declaring arrays like so:
+          int arr[2] = { [0] = 0, [1] = 1 };
+      Of course, we have to support complex types in here, so to initialise
+      structures in this form, we have left_brace_t initializer_list
+      right_brace_t.
+
+      Also, it can be like e.g., cpu = (cpumask_t) { [0 ... 2] = 0UL };
+    */
+    | left_square_t constant_optional_range right_square_t equals_t
+    constant_expression
+    {
+        $$ = new node_t($1, $2, $3, $4, $5);
+    }
+    | left_square_t constant_optional_range right_square_t equals_t
+    left_brace_t initializer_list right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);
+    }
+    | left_square_t constant_optional_range right_square_t equals_t
+    left_brace_t initializer_list comma_t right_brace_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7, $8);
+    }
+    ;
+
+struct_period_initializer:
+    period_t identifier
+    {
+        $$ = new node_t($1, $2);
+        $2->s_identifier = string();
+    }
+    | period_t typedef_name_t
+    {
+        $$ = new node_t($1, $2);
+        $2->s_identifier = string();
+    }
+    | period_t identifier struct_period_initializer
+    {
+        $$ = new node_t($1, $2, $3);
+        $2->s_identifier = string();
+    }
+    | period_t typedef_name_t struct_period_initializer
+    {
+        $$ = new node_t($1, $2, $3);
+        $2->s_identifier = string();
+    }
+    ;
+
+constant_optional_range:
+    constant_expression
+    | constant_expression ellipsis_t constant_expression
+    {
+	$$ = new node_t($1, $2, $3);
+    }
+    ;
+
+initializer_list:
+    initializer
+    | initializer_list comma_t initializer      
+    { 
+        $$ = new node_t($1, $2, $3); 
+    }
+    /*| initializer_list comma_t
+    {
+	$$ = new node_t($1, $2);
+    }*/
+    ;
+
+/* B.2.3 Statements. */
+
+statement:
+    labeled_statement
+    | asm_statement
+    | compound_statement
+    | expression_statement
+    | selection_statement
+    | iteration_statement
+    | jump_statement
+    | declaration
+    ;
+
+labeled_statement:
+    identifier colon_t statement                
+    { 
+        $$ = new node_t($1, $2, $3); 
+        /* Ignore label identifiers, we don't want to globalise them */
+        $1->b_ignore = true;
+    }
+    /* GNU cc extension syntax: "case 1 ... 100:" */
+    | case_t constant_optional_range colon_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4);    
+    }
+    | default_t colon_t statement               
+    { 
+        $$ = new node_t($1, $2, $3); 
+   
+    }
+    ;
+
+/*
+ asm-statement:
+      asm type-qualifier[opt] ( asm-argument ) ;
+*/
+asm_statement:
+    asm_t left_bracket_t asm_argument right_bracket_t semicolon_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5);
+    }
+    | asm_t type_qualifier left_bracket_t asm_argument right_bracket_t semicolon_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6);
+    }
+    ;
+
+/*
+   asm-argument:
+     asm-string-literal
+     asm-string-literal : asm-operands[opt]
+     asm-string-literal : asm-operands[opt] : asm-operands[opt]
+     asm-string-literal : asm-operands[opt] : asm-operands[opt] : asm-clobbers
+
+  Some of the C code here is a bit verbose and ugly, but it simplifies writing
+  the grammar here, which is much more difficult to get right than the C code.
+*/
+asm_argument:
+    asm_string_literal
+    | asm_string_literal colon_t maybe_asm_operands
+    {
+        if ($3) {
+            $$ = new node_t($1, $2, $3);
+        } else {
+            $$ = new node_t($1, $2);
+        }
+    }
+    | asm_string_literal colon_t maybe_asm_operands colon_t maybe_asm_operands
+    {
+        if ($3 && $5) {
+            $$ = new node_t($1, $2, $3, $4, $5);
+        }
+        else if ($3) {
+            $$ = new node_t($1, $2, $3, $4);
+        }
+        else if ($5) {
+            $$ = new node_t($1, $2, $4, $5);
+        }
+        else {
+            $$ = new node_t($1, $2, $4);
+        }
+    }
+    | asm_string_literal colon_t maybe_asm_operands colon_t maybe_asm_operands colon_t asm_clobbers
+    {
+        if ($3 && $5) {
+            $$ = new node_t($1, $2, $3, $4, $5, $6, $7);
+        }
+        else if ($3) {
+            $$ = new node_t($1, $2, $3, $4, $6, $7);
+        }
+        else if ($5) {
+            $$ = new node_t($1, $2, $4, $5, $6, $7);
+        }
+        else {
+            $$ = new node_t($1, $2, $4, $6, $7);
+        }
+    }
+    ;
+
+maybe_asm_operands:
+    /* epsilon */
+    {
+        $$ = NULL;
+    }
+    | asm_operands
+    ;
+
+/*
+   asm-operands:
+     asm-operand
+     asm-operands , asm-operand
+*/
+asm_operands:
+    asm_operand
+    | asm_operands comma_t asm_operand
+    {
+        $$ = new node_t($1, $2, $3);
+    }
+    ;
+
+/*
+   asm-operand:
+     asm-string-literal ( expression )
+     [ identifier ] asm-string-literal ( expression )
+*/
+asm_operand: 
+    asm_string_literal left_bracket_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4);
+    }
+    | left_square_t identifier right_square_t asm_string_literal left_bracket_t expression right_bracket_t
+    {
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);
+    }
+    ;
+
+/*
+   asm-clobbers:
+     asm-string-literal
+     asm-clobbers , asm-string-literal
+*/
+asm_clobbers: 
+    asm_string_literal
+    | asm_clobbers comma_t asm_string_literal
+    {
+        $$ = new node_t($1, $2, $3);
+    }
+    ;
+
+/*
+  asm-string-literal:
+     string-literal
+*/
+asm_string_literal:
+    strings
+    ;
+
+compound_statement:
+    left_brace_t right_brace_t                  { $$ = new node_t($1, $2); }
+    | left_brace_t statement_list right_brace_t    
+    { 
+        $$ = new node_t($1, $2, $3); 
+        $$->type = node_t::t_compound_statement;
+    }
+    ;
+
+declaration_list:
+    old_function_declaration
+    { 
+        $$ = $1;
+        $$->b_declaration_list = true;
+    }
+    | declaration_list old_function_declaration
+    { 
+        $$ = new node_t($1, $2); 
+        $$->b_declaration_list = true;
+    }
+    ;
+
+statement_list:
+    statement
+    | statement_list statement                   
+    { 
+        $$ = new node_t($1, $2);
+        $$->type = node_t::t_statement_list;
+    }
+    ;
+
+expression_statement:
+    semicolon_t
+    | expression semicolon_t                     { $$ = new node_t($1, $2); }
+    ;
+
+selection_statement:
+    if_t left_bracket_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5);    
+    }
+    | if_t left_bracket_t expression right_bracket_t statement else_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);    
+    }
+    | switch_t left_bracket_t expression right_bracket_t statement
+    {    $$ = new node_t($1, $2, $3, $4, $5);    }
+    | if_t left_bracket_t typedef_name_t right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5);    
+    }
+    ;
+
+iteration_statement:
+    while_t left_bracket_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5);    
+    }
+    | do_t statement while_t left_bracket_t expression right_bracket_t 
+      semicolon_t
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);    
+    }
+    | for_t left_bracket_t semicolon_t semicolon_t right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6);    
+    }
+    | for_t left_bracket_t expression semicolon_t semicolon_t right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);    
+    }
+    | for_t left_bracket_t semicolon_t expression semicolon_t right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);    
+    }
+    | for_t left_bracket_t expression semicolon_t expression semicolon_t right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7, $8);    
+    }
+    | for_t left_bracket_t semicolon_t semicolon_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7);    
+    }
+    | for_t left_bracket_t expression semicolon_t semicolon_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7, $8);    
+    }
+    | for_t left_bracket_t semicolon_t expression semicolon_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7, $8);    
+    }
+    | for_t left_bracket_t expression semicolon_t expression semicolon_t expression right_bracket_t statement
+    {    
+        $$ = new node_t($1, $2, $3, $4, $5, $6, $7, $8, $9);    
+    }
+    ;
+
+jump_statement:
+    goto_t identifier semicolon_t               
+    { 
+        $$ = new node_t($1, $2, $3); 
+        /* The identifier after the 'goto' is a label, so we ignore the
+           identifier; we do not want to globalise it. */
+        $2->b_ignore = true;
+    }
+    | continue_t semicolon_t                    { $$ = new node_t($1, $2); }
+    | break_t semicolon_t                       { $$ = new node_t($1, $2); }
+    | return_t semicolon_t                      { $$ = new node_t($1, $2); }
+    | return_t expression semicolon_t           { $$ = new node_t($1, $2, $3); }
+    ;
+
+/* B.2.4 External definitions. */
+
+/* edit: new start state to allow empty files */
+start_c: /* empty: allow empty files */
+    |   translation_unit
+    {
+        // Post-process the AST, possibly removing nodes we find we don't want.
+        // See the documentation in handle_global.cc
+        extern_global_array_initialisers_special_case();
+
+        fputs("#include \"num_stacks.h\"\n", stdout);
+        // Print out the resulting tree
+        $$->print();
+        // Clean up 
+        delete $$; 
+        // Make sure there is a newline at end of file to stop gcc complaining
+        fputs("\n", stdout);
+    }
+    ;
+
+translation_unit:
+    external_declaration                        
+    | translation_unit external_declaration        
+    { 
+        $$ = new node_t($1, $2); 
+    }
+    ;
+
+external_declaration:
+    function_definition                            
+    { 
+        $$ = $1; 
+        $$->handle_global_references();
+    }
+    | declaration                                
+    { 
+        $$ = $1;
+
+        if ($$->get_function_declaration_b()) {
+            node_t* n = $$->get_function_declaration();
+            node_t* iden = n->get_identifier();
+            global_define_function(iden->s_identifier, true); 
+        }
+
+        // New
+        if(!$$->check_typedef()) {
+            $$->handle_global();
+            $$->b_toplevel = true;
+        } else {
+            // If its a typedef we can ignore it later
+            $$->b_ignore = true;
+        }
+    }
+    | asm_statement
+    | semicolon_t
+    ;
+
+function_definition:
+    declaration_specifiers declarator declaration_list compound_statement
+    {    
+        $$ = new node_t($1, $2, $3, $4);        
+        $2->b_ignore = true;
+        $2->b_declaration_list = true;
+        $3->b_declaration_list = true;
+        global_define_function($2->get_identifier()->s_identifier, false);
+    }
+    | declaration_specifiers declarator compound_statement
+    {
+        $$ = new node_t($1, $2, $3);            
+        $2->b_ignore = true;
+        $2->b_declaration_list = true;
+        global_define_function($2->get_identifier()->s_identifier, false);
+    }
+    | declarator declaration_list compound_statement
+    {    
+        $$ = new node_t($1, $2, $3);            
+        $1->b_ignore = true;
+        global_define_function($1->get_identifier()->s_identifier, false);
+    }
+    | declarator compound_statement
+    {    
+        $$ = new node_t($1, $2);                
+        $1->b_ignore = true;
+        global_define_function($1->get_identifier()->s_identifier, false);
+    }
+    ;
+
+/* Terminal wrappers */
+comma_t:            ','            { $$ = new node_t(); };
+semicolon_t:        ';'            { $$ = new node_t(); };
+asterisk_t:         '*'            { $$ = new node_t(); };
+left_bracket_t:     '('            { $$ = new node_t(); };
+right_bracket_t:    ')'            { $$ = new node_t(); };
+left_brace_t:       '{'            { $$ = new node_t(); };
+right_brace_t:      '}'            { $$ = new node_t(); };
+left_square_t:      '['            { $$ = new node_t(); };
+right_square_t:     ']'            { $$ = new node_t(); };
+colon_t:            ':'            { $$ = new node_t(); };
+equals_t:           '='            { $$ = new node_t(); };
+ampersand_t:        '&'            { $$ = new node_t(); };
+plus_t:             '+'            { $$ = new node_t(); };
+minus_t:            '-'            { $$ = new node_t(); };
+or_t:               '|'            { $$ = new node_t(); };
+divide_t:           '/'            { $$ = new node_t(); };
+tilde_t:            '~'            { $$ = new node_t(); };
+question_t:         '?'            { $$ = new node_t(); };
+hat_t:              '^'            { $$ = new node_t(); };
+less_than_t:        '<'            { $$ = new node_t(); };
+greater_than_t:     '>'            { $$ = new node_t(); };
+percent_t:          '%'            { $$ = new node_t(); };
+period_t:           '.'            { $$ = new node_t(); };
+exclamation_t:      '!'            { $$ = new node_t(); };
+
+goto_t:             GOTO           { $$ = new node_t(); };
+continue_t:         CONTINUE       { $$ = new node_t(); };
+break_t:            BREAK          { $$ = new node_t(); };
+return_t:           RETURN         { $$ = new node_t(); };
+if_t:               IF             { $$ = new node_t(); };
+switch_t:           SWITCH         { $$ = new node_t(); };
+else_t:             ELSE           { $$ = new node_t(); };
+for_t:              FOR            { $$ = new node_t(); };
+do_t:               DO             { $$ = new node_t(); };
+while_t:            WHILE          { $$ = new node_t(); };
+case_t:             CASE           { $$ = new node_t(); };
+default_t:          DEFAULT        { $$ = new node_t(); };
+ellipsis_t:         ELLIPSIS       { $$ = new node_t(); };
+const_t:            CONST          { $$ = new node_t(); };
+volatile_t:         VOLATILE       { $$ = new node_t(); };
+enum_t:             ENUM           { $$ = new node_t(); };
+struct_t:           STRUCT         { $$ = new node_t(); };
+union_t:            UNION          { $$ = new node_t(); };
+void_t:             VOID           { $$ = new node_t(); };
+char_t:             CHAR           { $$ = new node_t(); };
+short_t:            SHORT          { $$ = new node_t(); };
+int_t:              INT            { $$ = new node_t(); };
+long_t:             LONG           { $$ = new node_t(); };
+float_t:            FLOAT          { $$ = new node_t(); };
+double_t:           DOUBLE         { $$ = new node_t(); };
+signed_t:           SIGNED         { $$ = new node_t(); };
+unsigned_t:         UNSIGNED       { $$ = new node_t(); };
+typedef_name_t:     TYPEDEF_NAME   { $$ = new node_t(); };
+typedef_t:          TYPEDEF        { $$ = new node_t(); };
+extern_t:           EXTERN         { $$ = new node_t(); };
+static_t:           STATIC         { $$ = new node_t(); };
+auto_t:             AUTO           { $$ = new node_t(); };
+register_t:         REGISTER       { $$ = new node_t(); };
+muleq_t:            MULEQ          { $$ = new node_t(); };
+diveq_t:            DIVEQ          { $$ = new node_t(); };
+modeq_t:            MODEQ          { $$ = new node_t(); };
+addeq_t:            ADDEQ          { $$ = new node_t(); };
+subeq_t:            SUBEQ          { $$ = new node_t(); };
+sleq_t:             SLEQ           { $$ = new node_t(); };
+sreq_t:             SREQ           { $$ = new node_t(); };
+andeq_t:            ANDEQ          { $$ = new node_t(); };
+xoreq_t:            XOREQ          { $$ = new node_t(); };
+oreq_t:             OREQ           { $$ = new node_t(); };
+oror_t:             OROR           { $$ = new node_t(); };
+andand_t:           ANDAND         { $$ = new node_t(); };
+noteq_t:            NOTEQ          { $$ = new node_t(); };
+eq_t:               EQ             { $$ = new node_t(); };
+lteq_t:             LTEQ           { $$ = new node_t(); };
+gteq_t:             GTEQ           { $$ = new node_t(); };
+sl_t:               SL             { $$ = new node_t(); };
+sr_t:               SR             { $$ = new node_t(); };
+plusplus_t:         PLUSPLUS       { $$ = new node_t(); };
+minusminus_t:       MINUSMINUS     { $$ = new node_t(); };
+sizeof_t:           SIZEOF         { $$ = new node_t(); };
+arrow_t:            ARROW          { $$ = new node_t(); };
+identifier_t:       IDENTIFIER     { $$ = new node_t(); 
+                                     $$->s_identifier = $$->s_token;
+                                   };
+integer_t:          INTEGER        { $$ = new node_t(); };
+character_t:        CHARACTER      { $$ = new node_t(); };
+floating_t:         FLOATING       { $$ = new node_t(); };
+string_t:           STRING         { $$ = new node_t(); };
+
+typeof_t:           TYPEOF         { $$ = new node_t(); };
+alignof_t:          ALIGNOF        { $$ = new node_t(); };
+offsetof_t:         OFFSETOF       { $$ = new node_t(); };
+asm_t:              ASM            { $$ = new node_t(); };
+gcc_builtin_types_compat_t: GCC_BUILTIN_TYPES_COMPATIBLE { $$ = new node_t(); }
+
+%%
+
+extern int charno;
+extern char *yytext;
+
+static void
+yyerror(const char *s)
+{
+    fprintf(stderr, "Line %d: Char %d: %s (last token was '%s')\n", 
+        lineno, charno, s, yytext);
+    exit(1);
+}
+
+#if YYDEBUG
+extern int yydebug;
+#endif
+
+int opt_verbose = 0;
+const char *progname = NULL;
+
+int
+main(int argc, char *argv[])
+{
+    int i;
+    lineno = 1;
+    charno = 0;
+
+#if YYDEBUG
+    yydebug = 1;
+#endif
+
+    progname = argv[0];
+
+    for(i = 1; i < argc; i++) {
+        if(argv[i][0] == '-') {
+            if(argv[i][1] == 'v')
+                opt_verbose++;
+        } else {
+            setup_globals(argv[i]);
+        }
+    }
+
+    yyparse();
+
+    return 0;
+}
+
+/* vim:syn=yacc  
+*/
+
+

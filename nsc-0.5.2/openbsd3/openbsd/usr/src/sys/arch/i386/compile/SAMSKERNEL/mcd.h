@@ -1,0 +1,1 @@
+#define	NMCD	0

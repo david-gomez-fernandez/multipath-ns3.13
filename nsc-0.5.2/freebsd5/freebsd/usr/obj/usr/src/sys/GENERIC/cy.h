@@ -1,0 +1,1 @@
+#define NCY 0

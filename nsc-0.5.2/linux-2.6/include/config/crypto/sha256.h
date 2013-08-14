@@ -1,0 +1,1 @@
+#undef CONFIG_CRYPTO_SHA256

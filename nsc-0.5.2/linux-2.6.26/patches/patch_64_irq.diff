@@ -1,0 +1,16 @@
+Make x86_64 use the generic implementation, too.
+
+[x86 uses the generic implementation unless the kernel is compiled with 4K stacks]
+
+diff -r 4a00917c4d5f linux-2.6.26/include/asm-x86/irq_64.h
+--- a/linux-2.6.26/include/asm-x86/irq_64.h	Thu Aug 07 23:57:46 2008 +0200
++++ b/linux-2.6.26/include/asm-x86/irq_64.h	Sat Aug 09 17:49:46 2008 -0700
+@@ -46,6 +46,8 @@ extern void fixup_irqs(cpumask_t map);
+ extern void fixup_irqs(cpumask_t map);
+ #endif
+ 
++#ifndef CONFIG_NSC
+ #define __ARCH_HAS_DO_SOFTIRQ 1
++#endif
+ 
+ #endif /* _ASM_IRQ_H */

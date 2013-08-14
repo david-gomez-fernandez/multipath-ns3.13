@@ -1,0 +1,32 @@
+# vim: ft=python
+import os
+
+Import('default_env')
+curdir = Dir('.').path + '/'
+
+env = default_env.Clone(CPPPATH=['../sim', '.'], CCFLAGS='-Wall -g',
+                        LIBPATH='.')
+
+env.Library('simulator', ['sim.cc', 'net.cc', 'nsc_support.cc', 'app.cc',
+                          'simple_test.cc'])
+env.Append(LIBS=['simulator', 'dl'])
+
+tests = []
+tests.extend(env.Program('test_interface', ['test_interface.cc']))
+tests.extend(env.Program('test_tcp_stream', ['test_tcp_stream.cc']))
+
+env.Depends(tests, '$PREFIX/lib/liblinux2.6.18.so')
+env.Depends(tests, '$PREFIX/lib/liblinux2.6.26.so')
+
+if env['NSC_TARGET_ARCHITECTURE'] != 'amd64':
+  env.Depends(tests, '$PREFIX/lib/liblinux2.6.10.so')
+  env.Depends(tests, '$PREFIX/lib/libfreebsd5.3.so')
+  env.Depends(tests, '$PREFIX/lib/libopenbsd3.5.so')
+  env.Depends(tests, '$PREFIX/lib/liblwip.so')
+
+for test in tests:
+  test_cmd = 'LD_LIBRARY_PATH=$PREFIX/lib %s' % (os.path.join(curdir, str(test)))
+  # AddPostAction doesn't seem the nicest way to run tests. Maybe AlwaysBuild
+  # and Command would be better. Also we should alias the 'test' target to
+  # running the tests.
+  env.AddPostAction(test, test_cmd)

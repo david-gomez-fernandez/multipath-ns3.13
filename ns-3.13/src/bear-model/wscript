@@ -1,0 +1,34 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+def build(bld):
+    obj = bld.create_ns3_module('bear-model', ['core','wifi','network','internet','propagation'])
+    obj.source = [
+        'model/bear-model-entry.cc',
+        'model/bear-propagation-loss-model.cc',
+        'model/bear-error-model.cc'            
+        ]
+
+    obj_test = bld.create_ns3_module_test_library('bear-model')
+    obj_test.source = [
+        ]
+
+    headers = bld.new_task_gen(features=['ns3header'])  
+    headers.module = 'bear-model'
+    headers.source = [
+        'model/bear-model-entry.h',
+        'model/bear-propagation-loss-model.h',
+        'model/bear-error-model.h'           
+        ]
+
+    #bld.ns3_python_bindings()
+
+#if bld.env['ENABLE_GSL']:
+#        obj.use.extend(['GSL', 'GSLCBLAS', 'M'])
+#        obj_test.use.extend(['GSL', 'GSLCBLAS', 'M'])
+
+#if (bld.env['ENABLE_EXAMPLES']):
+#        bld.add_subdirs('examples')
+
+#bld.ns3_python_bindings()
+
+

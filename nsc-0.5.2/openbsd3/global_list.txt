@@ -1,0 +1,22 @@
+# Variables we were warned about by the globaliser, they need to be $expand_decl
+auth_hash_hmac_md5_96$expand_decl
+auth_hash_hmac_ripemd_160_96$expand_decl
+auth_hash_hmac_sha1_96$expand_decl
+comp_algo_deflate$expand_decl
+enc_xform_3des$expand_decl
+enc_xform_blf$expand_decl
+enc_xform_cast5$expand_decl
+enc_xform_des$expand_decl
+enc_xform_skipjack$expand_decl
+icmp6stat$expand_decl
+
+# Variables we need to ignore else we get undefined references
+PTD$ignored
+vm_physmem$ignored
+vmmapbsy$ignored
+time$ignored
+
+# encif is a special case, it is actually incorrectly specified as two different
+# types in two source files. It isn't used in code we use, so it's safe to ignore.
+encif$ignored
+

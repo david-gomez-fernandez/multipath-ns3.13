@@ -1,0 +1,1 @@
+#define	NSTRIP	0

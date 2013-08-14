@@ -1,0 +1,1 @@
+#define ADAPTIVE_GIANT 1

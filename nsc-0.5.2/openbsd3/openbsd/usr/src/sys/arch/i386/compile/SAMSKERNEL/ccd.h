@@ -1,0 +1,1 @@
+#define	NCCD	1
